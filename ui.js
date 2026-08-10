@@ -180,4 +180,18 @@ export const UI = {
     Audio.levelup();
     $("vOk").onclick=()=>{ Audio.click(); this.close(); };
   },
+   // Hands-on interactive lab (falls back to a quiz if no lab defined)
+  showLab(node, onResult){
+    const lab = LABS[node.lab];
+    if(!lab){ this.showQuestion(node, onResult); return; }
+    root().hidden = false;
+    root().innerHTML = `<div class="modal" style="max-width:760px">
+      <div class="tag">🧪 Hands-on Lab · ${node.title.en} · +${node.xp} XP</div>
+      <h2>${lab.title.en}</h2><div class="ar">${lab.title.ar}</div>
+      <div id="labMount"></div></div>`;
+    lab.render(document.getElementById("labMount"), (win)=>{
+      if(win){ onResult(true); }
+      else { this.close(); onResult(false); }
+    });
+  },
 };
