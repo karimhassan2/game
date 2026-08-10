@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Cyber Range — Operation Zero-Day</title>
+  <title>Cyber Range — Broken Access Control Lab</title>
   <link rel="stylesheet" href="styles.css" />
   <script type="importmap">
   {
@@ -18,22 +18,21 @@
   <div id="boot" class="overlay">
     <div class="boot-card">
       <div class="logo">🛡️ CYBER RANGE</div>
-      <div class="subtitle">Operation Zero-Day — <span dir="rtl">عملية اليوم صفر</span></div>
-      <p class="tagline">A legal, authorized penetration-testing training range.<br/>
-        <span dir="rtl">نطاق تدريبي قانوني ومُصرّح به لاختبار الاختراق.</span></p>
+      <div class="subtitle">Broken Access Control Lab — <span dir="rtl">معمل التحكم المعطّل بالوصول</span></div>
+      <p class="tagline">Walk to AcmeBank HQ, break in by abusing access control, capture the flag.<br/>
+        <span dir="rtl">اذهب إلى مقر AcmeBank، اخترقه باستغلال التحكم بالوصول، والتقط الفلاج.</span></p>
       <div class="profile-row">
         <label for="playerName">Agent name / <span dir="rtl">اسم العميل</span></label>
         <input id="playerName" type="text" maxlength="20" placeholder="e.g. Nova" />
       </div>
       <div id="profileList" class="profile-list"></div>
-      <button id="startBtn" class="btn-primary">▶ Start engagement / <span dir="rtl">ابدأ</span></button>
+      <button id="startBtn" class="btn-primary">▶ Start / <span dir="rtl">ابدأ</span></button>
       <div class="how-to">
         <strong>How to play / كيفية اللعب</strong>
         <ul>
-          <li>🖥️ Desktop: <b>WASD</b> move · <b>mouse drag</b> look · <b>E</b> interact · <b>M</b> map · <b>J</b> journal</li>
-          <li>📱 Touch: left <b>joystick</b> move · drag right to look · <b>tap node</b> to interact</li>
-          <li>🎯 Find glowing <b>intel nodes</b>, read the card, answer to capture the flag 🚩</li>
-          <li>⚖️ Stay inside the <b>green scope boundary</b> — going out is unauthorized!</li>
+          <li>🖥️ Desktop: <b>WASD</b> move · <b>mouse drag</b> to turn camera · <b>E</b> to enter the lab</li>
+          <li>📱 Touch: left <b>joystick</b> move · drag right to turn · <b>E</b> button to enter</li>
+          <li>🎯 Reach the glowing <b>AcmeBank</b> node and press <b>E</b> to start the hack</li>
         </ul>
       </div>
       <div id="bootError" class="boot-error" hidden></div>
@@ -43,21 +42,14 @@
   <div id="hud" class="hud" hidden>
     <div class="hud-top">
       <div id="rankBadge" class="rank-badge">Trainee</div>
-      <div class="xp-wrap">
-        <div class="xp-label"><span id="xpText">0 XP</span> · <span id="phaseText">Phase 1: Recon</span></div>
-        <div class="xp-bar"><div id="xpFill" class="xp-fill"></div></div>
-      </div>
-      <div id="flagCount" class="flag-count">🚩 0</div>
+      <div class="xp-wrap"><div class="xp-label"><span id="objective"></span></div></div>
+      <div id="flagCount" class="flag-count">🚩 0/1</div>
     </div>
     <div id="toast" class="toast" hidden></div>
-    <div id="objective" class="objective"></div>
     <div class="hud-buttons">
-      <button id="mapBtn" class="hud-btn" title="Map (M)">🗺️</button>
-      <button id="journalBtn" class="hud-btn" title="Journal (J)">📓</button>
       <button id="muteBtn" class="hud-btn" title="Sound">🔊</button>
       <button id="helpBtn" class="hud-btn" title="Help">❓</button>
     </div>
-    <div id="crosshair" class="crosshair">＋</div>
   </div>
 
   <div id="touchControls" class="touch-controls" hidden>
