@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Teacher Dashboard — Cyber Range</title>
+<style>
+  :root{--bg:#0a0e1a;--panel:#121a2e;--panel2:#1a2540;--accent:#2ee6a6;--accent2:#4da6ff;
+    --danger:#ff5470;--gold:#ffd166;--text:#e6ecff;--muted:#8ea0c8;--line:#243252}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;padding:24px}
+  h1{color:var(--accent);font-size:26px;margin-bottom:2px}
+  .sub{color:var(--muted);margin-bottom:20px;font-size:14px}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  button{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:8px;padding:9px 16px;cursor:pointer;font-size:14px}
+  button:hover{border-color:var(--accent2)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi .n{font-size:28px;font-weight:800;color:var(--accent)}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;overflow:hidden;margin-bottom:24px}
+  th,td{padding:11px 12px;text-align:left;font-size:13px;border-bottom:1px solid var(--line)}
+  th{background:var(--panel2);color:var(--muted);font-weight:600}
+  tr:hover td{background:rgba(77,166,255,.06);cursor:pointer}
+  .pill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700}
+  .g{background:rgba(46,230,166,.15);color:var(--accent)}
+  .w{background:rgba(255,84,112,.15);color:var(--danger)}
+  .prog{height:8px;background:#0b1120;border-radius:5px;overflow:hidden;min-width:90px}
+  .prog>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .detail{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;display:none}
+  .detail h2{color:var(--accent2);font-size:20px;margin-bottom:12px}
+  .phase-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:14px 0}
+  .phase{background:#0b1120;border:1px solid var(--line);border-radius:10px;padding:12px}
+  .phase h4{font-size:13px;margin-bottom:6px}
+  .phase small{color:var(--muted)}
+  .empty{color:var(--muted);padding:30px;text-align:center}
+  .log{max-height:220px;overflow:auto;font-size:12px;color:var(--muted);
+    background:#0b1120;border:1px solid var(--line);border-radius:10px;padding:12px}
+  .log div{padding:3px 0;border-bottom:1px solid #16203a}
+</style>
+</head>
+<body>
+  <h1>🛡️ Teacher Dashboard</h1>
+  <div class="sub">Cyber Range: Operation Zero-Day — student learning progress · <span dir="rtl">تقدّم الطلاب</span></div>
+  <div class="bar">
+    <button onclick="render()">🔄 Refresh</button>
+    <button onclick="exportCsv()">⬇️ Export CSV</button>
+  </div>
+  <div id="kpis" class="cards"></div>
+  <div id="tableWrap"></div>
+  <div id="detail" class="detail"></div>
+
+<script type="module">
+const KEY="cyberRange.save.v1";
+// Mirror of data.js metadata needed for reporting (kept minimal & in sync).
+const DISTRICTS=[
+  {id:"recon",order:1,name:"Recon Ridge",phase:"Reconnaissance"},
+  {id:"scan",order:2,name:"Scanner Bay",phase:"Scanning & Networking"},
+  {id:"access",order:3,name:"Breach Plaza",phase:"Gaining Access (OWASP/Tools)"},
+  {id:"persist",order:4,name:"Persistence Point",phase:"Maintaining Access"},
+  {id:"report",order:5,name:"Report HQ",phase:"Reporting"},
+];
+const NODE_DISTRICT={ "scope-auth":"recon","osint":"recon","active-passive":"recon",
+  "nmap":"scan","ports":"scan","enum":"scan",
+  "sqli":"access","xss":"access","burp":"access","metasploit":"access",
+  "privesc":"persist","persistence":"persist",
+  "evidence":"report","cvss":"report","remediation":"report" };
+const TOTAL=Object.keys(NODE_DISTRICT).length;
+const RANKS=[[0,"Trainee"],[120,"Junior"],[300,"Analyst"],[520,"Pro Pentester"],[800,"Red Team Lead"]];
+const rank=xp=>{let r="Trainee";for(const[t,n]of RANKS)if(xp>=t)r=n;return r;};
+
+function read(){ try{return JSON.parse(localStorage.getItem(KEY))||{profiles:{}};}catch{return{profiles:{}};} }
+
+function nodesByDistrict(p,d){
+  const ids=Object.keys(NODE_DISTRICT).filter(id=>NODE_DISTRICT[id]===d);
+  const done=ids.filter(id=>p.discovered?.[id]?.correct).length;
+  return {done,total:ids.length};
+}
+function accuracy(p){
+  const ev=(p.events||[]).filter(e=>e.type==="attempt");
+  if(!ev.length) return null;
+  const ok=ev.filter(e=>e.correct).length;
+  return Math.round(ok/ev.length*100);
+}
+
+window.render=function(){
+  const data=read();
+  const names=Object.keys(data.profiles||{});
+  const kpis=document.getElementById("kpis");
+  const wrap=document.getElementById("tableWrap");
+  if(!names.length){
+    kpis.innerHTML=""; wrap.innerHTML=`<div class="empty">No students yet. Ask them to play the game on this browser, then refresh.<br/><span dir="rtl">لا يوجد طلاب بعد. اطلب منهم اللعب على هذا المتصفح ثم حدّث.</span></div>`;
+    return;
+  }
+  const totFlags=names.reduce((s,n)=>s+(data.profiles[n].flags||0),0);
+  const avgAcc=Math.round(names.map(n=>accuracy(data.profiles[n])||0).reduce((a,b)=>a+b,0)/names.length);
+  const completed=names.filter(n=>(data.profiles[n].flags||0)>=TOTAL).length;
+  kpis.innerHTML=[
+    [names.length,"Students / طلاب"],
+    [totFlags,"Flags captured / أعلام"],
+    [avgAcc+"%","Avg accuracy / دقة"],
+    [completed,"Completed range / أكملوا"],
+  ].map(([n,l])=>`<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+
+  wrap.innerHTML=`<table><thead><tr>
+    <th>Student</th><th>Rank</th><th>XP</th><th>Progress</th>
+    <th>Flags</th><th>Accuracy</th><th>Violations</th><th>Last active</th>
+    </tr></thead><tbody>${names.map(n=>{
+      const p=data.profiles[n]; const acc=accuracy(p);
+      const pct=Math.round((p.flags||0)/TOTAL*100);
+      return `<tr onclick="showDetail('${n.replace(/'/g,"\\'")}')">
+        <td><b>👤 ${n}</b></td>
+        <td><span class="pill g">${rank(p.xp||0)}</span></td>
+        <td>${p.xp||0}</td>
+        <td><div class="prog"><span style="width:${pct}%"></span></div><small>${p.flags||0}/${TOTAL}</small></td>
+        <td>🚩 ${p.flags||0}</td>
+        <td>${acc==null?"—":acc+"%"}</td>
+        <td>${p.violations?`<span class="pill w">${p.violations}</span>`:"0"}</td>
+        <td>${p.updatedAt?new Date(p.updatedAt).toLocaleString():"—"}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+  document.getElementById("detail").style.display="none";
+};
+
+window.showDetail=function(name){
+  const p=read().profiles[name]; if(!p) return;
+  const d=document.getElementById("detail");
+  const phases=DISTRICTS.map(dd=>{
+    const {done,total}=nodesByDistrict(p,dd.id);
+    const badge=p.badges?.[dd.id];
+    return `<div class="phase"><h4>${dd.order}. ${dd.name} ${badge?"🏅":""}</h4>
+      <small>${dd.phase}</small><br/>
+      <div class="prog" style="margin-top:8px"><span style="width:${Math.round(done/total*100)}%"></span></div>
+      <small>${done}/${total} concepts</small></div>`;
+  }).join("");
+  const log=(p.events||[]).slice(-40).reverse().map(e=>{
+    const t=new Date(e.t).toLocaleTimeString();
+    if(e.type==="attempt") return `<div>${t} — ${e.correct?"✅":"❌"} ${e.node} <small>(${e.district})</small></div>`;
+    if(e.type==="badge") return `<div>${t} — 🏅 badge: ${e.district}</div>`;
+    if(e.type==="scope_violation") return `<div>${t} — ⚠️ out-of-scope</div>`;
+    return `<div>${t} — ${e.type}</div>`;
+  }).join("")||"<div>No activity yet.</div>";
+  d.innerHTML=`<h2>👤 ${name} — ${rank(p.xp||0)} · ${p.xp||0} XP</h2>
+    <div>Flags: 🚩 ${p.flags||0}/${TOTAL} · Accuracy: ${accuracy(p)??"—"}% · Scope violations: ${p.violations||0}</div>
+    <div class="phase-grid">${phases}</div>
+    <h4 style="color:var(--muted);margin-bottom:8px">Recent activity / النشاط الأخير</h4>
+    <div class="log">${log}</div>`;
+  d.style.display="block";
+  d.scrollIntoView({behavior:"smooth"});
+};
+
+window.exportCsv=function(){
+  const data=read(); const names=Object.keys(data.profiles||{});
+  const rows=[["Student","Rank","XP","Flags","Total","Accuracy%","Violations","LastActive"]];
+  names.forEach(n=>{const p=data.profiles[n];
+    rows.push([n,rank(p.xp||0),p.xp||0,p.flags||0,TOTAL,accuracy(p)??"",p.violations||0,
+      p.updatedAt?new Date(p.updatedAt).toISOString():""]);});
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="cyber-range-progress.csv"; a.click();
+};
+
+render();
+</script>
+</body>
+</html>
