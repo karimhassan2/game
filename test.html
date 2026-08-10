@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Test</title></head>
+<body style="font-family:sans-serif;background:#111;color:#fff;padding:20px">
+  <h2>Test page</h2>
+  <button id="b" style="padding:14px 20px;font-size:18px">اضغط هنا / Click me</button>
+  <div id="out" style="margin-top:16px;font-size:16px">النتيجة هتظهر هنا…</div>
+  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script>
+    var out=document.getElementById("out");
+    document.getElementById("b").onclick=function(){ out.textContent="✅ الزرار شغّال! JavaScript يعمل."; };
+    window.onload=function(){
+      if(typeof THREE!=="undefined"){ out.textContent="✅ Three.js اتحمّلت (نسخة r"+THREE.REVISION+"). كل حاجة تمام."; }
+      else{ out.textContent="❌ Three.js ماتحمّلتش — النت مقطوع أو المكتبة محجوبة."; }
+    };
+  </script>
+</body></html>
