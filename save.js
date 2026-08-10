@@ -71,18 +71,3 @@ export const Save = {
 
   exportJSON(){ return JSON.stringify(readAll(), null, 2); },
 };
-📄 audio.js
-JavaScript
-
-// ============================================================
-// audio.js — bilingual speech (Web Speech API) + WebAudio sfx.
-// Everything degrades gracefully if APIs are unavailable.
-// ============================================================
-let muted = false;
-let ctx = null;
-
-function ac(){
-  if(ctx) return ctx;
-  try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { ctx = null; }
-  return ctx;
-}
