@@ -4,6 +4,7 @@
 // ============================================================
 import { DISTRICTS, NODES, RANKS, TOTAL_NODES, districtById, nodesOf } from "./data.js";
 import { Audio } from "./audio.js";
+import { LABS } from "./labs.js";
 
 const $ = id => document.getElementById(id);
 const root = () => $("modalRoot");
@@ -108,6 +109,20 @@ export const UI = {
       };
     });
   },
+   // Hands-on interactive lab (falls back to a quiz if no lab defined)
+  showLab(node, onResult){
+    const lab = LABS[node.lab];
+    if(!lab){ this.showQuestion(node, onResult); return; }
+    root().hidden = false;
+    root().innerHTML = `<div class="modal" style="max-width:760px">
+      <div class="tag">🧪 Hands-on Lab · ${node.title.en} · +${node.xp} XP</div>
+      <h2>${lab.title.en}</h2><div class="ar">${lab.title.ar}</div>
+      <div id="labMount"></div></div>`;
+    lab.render(document.getElementById("labMount"), (win)=>{
+      if(win){ onResult(true); }
+      else { this.close(); onResult(false); }
+    });
+  },
 
   // Journal — every concept, discovered or locked
   showJournal(profile){
@@ -179,19 +194,5 @@ export const UI = {
       <div class="actions"><button class="btn-go" id="vOk">Free roam / تجوّل حر</button></div>`);
     Audio.levelup();
     $("vOk").onclick=()=>{ Audio.click(); this.close(); };
-  },
-   // Hands-on interactive lab (falls back to a quiz if no lab defined)
-  showLab(node, onResult){
-    const lab = LABS[node.lab];
-    if(!lab){ this.showQuestion(node, onResult); return; }
-    root().hidden = false;
-    root().innerHTML = `<div class="modal" style="max-width:760px">
-      <div class="tag">🧪 Hands-on Lab · ${node.title.en} · +${node.xp} XP</div>
-      <h2>${lab.title.en}</h2><div class="ar">${lab.title.ar}</div>
-      <div id="labMount"></div></div>`;
-    lab.render(document.getElementById("labMount"), (win)=>{
-      if(win){ onResult(true); }
-      else { this.close(); onResult(false); }
-    });
   },
 };
