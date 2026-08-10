@@ -50,12 +50,9 @@ input:focus{border-color:var(--accent)}
 code{background:#04121a;padding:1px 5px;border-radius:4px;color:#ffd166;font-size:12px}
 </style>
 <script>
-window.addEventListener('error',e=>showErr((e.message||e)+' @ '+(e.filename||'').split('/').pop()+':'+(e.lineno||'')));
+window.addEventListener('error',e=>showErr((e.message||e)+' @ '+((e.filename||'').split('/').pop())+':'+(e.lineno||'')));
 window.addEventListener('unhandledrejection',e=>showErr('Promise: '+((e.reason&&e.reason.message)||e.reason)));
 function showErr(m){var d=document.getElementById('err');if(d){d.style.display='block';d.textContent='⚠️ '+m;}}
-</script>
-<script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
 </head>
 <body>
@@ -85,241 +82,211 @@ function showErr(m){var d=document.getElementById('err');if(d){d.style.display='
 <div id="modalRoot" class="modalRoot" hidden></div>
 <canvas id="scene"></canvas>
 
-<script type="module">
-import * as THREE from "three";
+<!-- Three.js as a CLASSIC global script (works even via double-click) -->
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script>
+if(typeof THREE==='undefined'){ showErr('Three.js library did not load. You need an internet connection (the game downloads Three.js from the web). Once online, refresh.'); }
 
 /* ---------- content ---------- */
-const NODE = { id:"bac", pos:{x:0,z:-30}, xp:100,
-  title:{en:"Broken Access Control (OWASP #1)", ar:"التحكم المعطّل بالوصول"},
+var NODE={id:"bac",pos:{x:0,z:-30},xp:100,
+  title:{en:"Broken Access Control (OWASP #1)",ar:"التحكم المعطّل بالوصول"},
   card:{en:"Broken Access Control lets a user act outside their permissions — reading others' data (IDOR) or opening admin pages directly. It's the #1 web risk. Exploit a live example yourself.",
-        ar:"يتيح التحكم المعطّل بالوصول للمستخدم تجاوز صلاحياته — رؤية بيانات غيره (IDOR) أو فتح صفحات الإدارة مباشرةً. إنه الخطر الأول للويب. استغل مثالًا حيًا بنفسك."} };
-const SCOPE = 120;
+        ar:"يتيح التحكم المعطّل بالوصول للمستخدم تجاوز صلاحياته — رؤية بيانات غيره (IDOR) أو فتح صفحات الإدارة مباشرةً. إنه الخطر الأول للويب. استغل مثالًا حيًا بنفسك."}};
+var SCOPE=120;
 
 /* ---------- audio ---------- */
-let muted=false, actx=null;
-function ac(){ if(!actx){ try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch{actx=null} } return actx; }
-function beep(f,d=0.12,t="sine",g=0.05){ const a=ac(); if(!a||muted)return; if(a.state==="suspended")a.resume();
-  const o=a.createOscillator(),ga=a.createGain(); o.type=t; o.frequency.value=f; ga.gain.value=g; o.connect(ga); ga.connect(a.destination);
-  const now=a.currentTime; o.start(now); ga.gain.exponentialRampToValueAtTime(.0001,now+d); o.stop(now+d); }
-const SFX={click:()=>beep(440,.05),ok:()=>{beep(720,.1,"square");setTimeout(()=>beep(1040,.15,"square"),90)},
-  bad:()=>beep(200,.2,"sawtooth"),win:()=>[523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.16,"triangle"),i*110)),
-  disc:()=>{beep(660,.1,"triangle");setTimeout(()=>beep(880,.12,"triangle"),90)}};
+var muted=false,actx=null;
+function ac(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){actx=null}}return actx;}
+function beep(f,d,t,g){d=d||0.12;t=t||"sine";g=g||0.05;var a=ac();if(!a||muted)return;if(a.state==="suspended")a.resume();
+  var o=a.createOscillator(),ga=a.createGain();o.type=t;o.frequency.value=f;ga.gain.value=g;o.connect(ga);ga.connect(a.destination);
+  var n=a.currentTime;o.start(n);ga.gain.exponentialRampToValueAtTime(.0001,n+d);o.stop(n+d);}
+var SFX={click:function(){beep(440,.05)},ok:function(){beep(720,.1,"square");setTimeout(function(){beep(1040,.15,"square")},90)},
+  bad:function(){beep(200,.2,"sawtooth")},win:function(){[523,659,784,1046].forEach(function(f,i){setTimeout(function(){beep(f,.16,"triangle")},i*110)})},
+  disc:function(){beep(660,.1,"triangle");setTimeout(function(){beep(880,.12,"triangle")},90)}};
 
 /* ---------- terrain ---------- */
-function heightAt(x,z){ return Math.sin(x*0.035)*2.2 + Math.cos(z*0.03)*2.0 + Math.sin((x+z)*0.012)*1.4; }
+function heightAt(x,z){return Math.sin(x*0.035)*2.2+Math.cos(z*0.03)*2.0+Math.sin((x+z)*0.012)*1.4;}
+
+/* ---------- globals ---------- */
+var scene,camera,renderer,sun,nodeGroup,group;
+var P={pos:null,facing:Math.PI,camYaw:0,camPitch:.4,camDist:12,keys:{},joy:{x:0,y:0,active:false},cam:null,init:false};
 
 /* ---------- world ---------- */
-let scene,camera,renderer,sun,nodeGroup;
 function buildWorld(){
   scene=new THREE.Scene();
   scene.fog=new THREE.Fog(0x2a4d6e,90,360);
-  // sky
-  const sky=new THREE.Mesh(new THREE.SphereGeometry(500,32,20), new THREE.ShaderMaterial({
-    side:THREE.BackSide, depthWrite:false,
+  var sky=new THREE.Mesh(new THREE.SphereGeometry(500,32,20),new THREE.ShaderMaterial({
+    side:THREE.BackSide,depthWrite:false,
     uniforms:{top:{value:new THREE.Color(0x0a2a5e)},mid:{value:new THREE.Color(0x2f6f9e)},bot:{value:new THREE.Color(0x8fc7d6)}},
-    vertexShader:`varying vec3 v; void main(){ v=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-    fragmentShader:`varying vec3 v; uniform vec3 top; uniform vec3 mid; uniform vec3 bot;
-      void main(){ float h=normalize(v).y; vec3 c=h>0.0?mix(mid,top,h):mix(mid,bot,-h); gl_FragColor=vec4(c,1.0);}`}));
+    vertexShader:"varying vec3 v; void main(){ v=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+    fragmentShader:"varying vec3 v; uniform vec3 top; uniform vec3 mid; uniform vec3 bot; void main(){ float h=normalize(v).y; vec3 c=h>0.0?mix(mid,top,h):mix(mid,bot,-h); gl_FragColor=vec4(c,1.0);}"}));
   scene.add(sky);
   scene.add(new THREE.HemisphereLight(0xcfe6ff,0x2a3a2a,1.1));
-  sun=new THREE.DirectionalLight(0xfff2df,2.6); sun.position.set(40,80,30); sun.castShadow=true;
-  sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.near=1; sun.shadow.camera.far=200;
-  sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;
-  sun.shadow.bias=-0.0003; scene.add(sun); scene.add(sun.target);
-  // ground
-  const g=new THREE.PlaneGeometry(500,500,120,120); g.rotateX(-Math.PI/2);
-  for(let i=0;i<g.attributes.position.count;i++){const p=g.attributes.position; p.setY(i,heightAt(p.getX(i),p.getZ(i)));}
+  sun=new THREE.DirectionalLight(0xfff2df,2.0);sun.position.set(40,80,30);sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.near=1;sun.shadow.camera.far=200;
+  sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;sun.shadow.bias=-0.0003;
+  scene.add(sun);scene.add(sun.target);
+  var g=new THREE.PlaneGeometry(500,500,120,120);g.rotateX(-Math.PI/2);
+  var p=g.attributes.position;for(var i=0;i<p.count;i++){p.setY(i,heightAt(p.getX(i),p.getZ(i)));}
   g.computeVertexNormals();
-  const gm=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x2c6e57,roughness:.95,flatShading:true})); gm.receiveShadow=true; scene.add(gm);
-  const grid=new THREE.GridHelper(500,100,0x63e0b0,0x2f5a70); grid.position.y=.06; grid.material.opacity=.18; grid.material.transparent=true; scene.add(grid);
-  // scope ring
-  const pts=[]; for(let i=0;i<=128;i++){const a=i/128*Math.PI*2,x=Math.cos(a)*SCOPE,z=Math.sin(a)*SCOPE; pts.push(new THREE.Vector3(x,heightAt(x,z)+.4,z));}
+  var gm=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x2c6e57,roughness:.95,flatShading:true}));gm.receiveShadow=true;scene.add(gm);
+  var grid=new THREE.GridHelper(500,100,0x63e0b0,0x2f5a70);grid.position.y=.06;grid.material.opacity=.18;grid.material.transparent=true;scene.add(grid);
+  var pts=[];for(var k=0;k<=128;k++){var a=k/128*Math.PI*2,cx=Math.cos(a)*SCOPE,cz=Math.sin(a)*SCOPE;pts.push(new THREE.Vector3(cx,heightAt(cx,cz)+.4,cz));}
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x2ee6a6})));
-  // city props
-  let s=1337; const rnd=()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
-  const mats=[0x3a5a7a,0x2f4a6a,0x46688a].map(c=>new THREE.MeshStandardMaterial({color:c,flatShading:true,roughness:.9}));
-  for(let i=0;i<40;i++){const x=(rnd()*2-1)*SCOPE*.85,z=(rnd()*2-1)*SCOPE*.85; if(Math.hypot(x,z)<20||Math.hypot(x,z)>SCOPE-8)continue;
-    const h=3+rnd()*14,w=3+rnd()*4; const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),mats[i%3]); b.position.set(x,heightAt(x,z)+h/2,z); b.rotation.y=rnd()*Math.PI; b.castShadow=true; b.receiveShadow=true; scene.add(b);}
-  // AcmeBank building
-  const by=heightAt(NODE.pos.x,NODE.pos.z);
-  const bank=new THREE.Mesh(new THREE.BoxGeometry(14,20,12),new THREE.MeshStandardMaterial({color:0x24406a,flatShading:true,roughness:.8}));
-  bank.position.set(NODE.pos.x,by+10,NODE.pos.z-4); bank.castShadow=true; bank.receiveShadow=true; scene.add(bank);
-  const sign=new THREE.Mesh(new THREE.BoxGeometry(10,2.4,.6),new THREE.MeshStandardMaterial({color:0xffd166,emissive:0xffd166,emissiveIntensity:.8}));
-  sign.position.set(NODE.pos.x,by+16,NODE.pos.z+2.2); scene.add(sign);
+  var s=1337;function rnd(){s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
+  var mats=[0x3a5a7a,0x2f4a6a,0x46688a].map(function(c){return new THREE.MeshStandardMaterial({color:c,flatShading:true,roughness:.9});});
+  for(var j=0;j<40;j++){var x=(rnd()*2-1)*SCOPE*.85,z=(rnd()*2-1)*SCOPE*.85;if(Math.hypot(x,z)<20||Math.hypot(x,z)>SCOPE-8)continue;
+    var h=3+rnd()*14,w=3+rnd()*4;var b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),mats[j%3]);b.position.set(x,heightAt(x,z)+h/2,z);b.rotation.y=rnd()*Math.PI;b.castShadow=true;b.receiveShadow=true;scene.add(b);}
+  var by=heightAt(NODE.pos.x,NODE.pos.z);
+  var bank=new THREE.Mesh(new THREE.BoxGeometry(14,20,12),new THREE.MeshStandardMaterial({color:0x24406a,flatShading:true,roughness:.8}));
+  bank.position.set(NODE.pos.x,by+10,NODE.pos.z-4);bank.castShadow=true;bank.receiveShadow=true;scene.add(bank);
+  var sign=new THREE.Mesh(new THREE.BoxGeometry(10,2.4,.6),new THREE.MeshStandardMaterial({color:0xffd166,emissive:0xffd166,emissiveIntensity:.8}));
+  sign.position.set(NODE.pos.x,by+16,NODE.pos.z+2.2);scene.add(sign);
   scene.add(makeLabel("🏦 AcmeBank",0xffd166,NODE.pos.x,by+22,NODE.pos.z-4));
-  // interaction node (glowing orb + beam)
-  nodeGroup=new THREE.Group(); nodeGroup.position.set(NODE.pos.x,by,NODE.pos.z);
-  const core=new THREE.Mesh(new THREE.OctahedronGeometry(1.2,0),new THREE.MeshStandardMaterial({color:0x2ee6a6,emissive:0x2ee6a6,emissiveIntensity:1,flatShading:true})); core.position.y=2.4; core.castShadow=true; nodeGroup.add(core);
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.8,.08,8,32),new THREE.MeshStandardMaterial({color:0x4da6ff,emissive:0x4da6ff,emissiveIntensity:.9})); ring.rotation.x=Math.PI/2; ring.position.y=2.4; nodeGroup.add(ring);
-  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,40,6),new THREE.MeshBasicMaterial({color:0x2ee6a6,transparent:true,opacity:.18})); beam.position.y=20; nodeGroup.add(beam);
-  nodeGroup.userData={core,ring}; scene.add(nodeGroup);
+  nodeGroup=new THREE.Group();nodeGroup.position.set(NODE.pos.x,by,NODE.pos.z);
+  var core=new THREE.Mesh(new THREE.OctahedronGeometry(1.2,0),new THREE.MeshStandardMaterial({color:0x2ee6a6,emissive:0x2ee6a6,emissiveIntensity:1,flatShading:true}));core.position.y=2.4;core.castShadow=true;nodeGroup.add(core);
+  var ring=new THREE.Mesh(new THREE.TorusGeometry(1.8,.08,8,32),new THREE.MeshStandardMaterial({color:0x4da6ff,emissive:0x4da6ff,emissiveIntensity:.9}));ring.rotation.x=Math.PI/2;ring.position.y=2.4;nodeGroup.add(ring);
+  var beam=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,40,6),new THREE.MeshBasicMaterial({color:0x2ee6a6,transparent:true,opacity:.18}));beam.position.y=20;nodeGroup.add(beam);
+  nodeGroup.userData={core:core,ring:ring};scene.add(nodeGroup);
 }
 function makeLabel(text,color,x,y,z){
-  const cv=document.createElement("canvas"); cv.width=512;cv.height=160; const g=cv.getContext("2d");
-  g.fillStyle="rgba(10,14,26,.82)";g.fillRect(0,0,512,160); g.strokeStyle="#"+color.toString(16).padStart(6,"0");g.lineWidth=8;g.strokeRect(6,6,500,148);
+  var cv=document.createElement("canvas");cv.width=512;cv.height=160;var g=cv.getContext("2d");
+  g.fillStyle="rgba(10,14,26,.82)";g.fillRect(0,0,512,160);g.strokeStyle="#"+color.toString(16);g.lineWidth=8;g.strokeRect(6,6,500,148);
   g.fillStyle="#e6ecff";g.textAlign="center";g.font="bold 52px Segoe UI";g.fillText(text,256,100);
-  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true})); spr.scale.set(16,5,1); spr.position.set(x,y,z); return spr;
+  var spr=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));spr.scale.set(16,5,1);spr.position.set(x,y,z);return spr;
 }
 
-/* ---------- player (third-person) ---------- */
-const P={pos:new THREE.Vector3(0,0,6),facing:Math.PI,camYaw:0,camPitch:.4,camDist:12,keys:{},joy:{x:0,y:0,active:false},cam:new THREE.Vector3(),init:false};
-let group;
+/* ---------- player ---------- */
 function buildPlayer(){
-  const canvas=document.getElementById("scene");
+  var canvas=document.getElementById("scene");
   group=new THREE.Group();
-  const mk=(geo,c,y,e=0)=>{const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:c,roughness:.7,emissive:e,emissiveIntensity:.5}));m.position.y=y;m.castShadow=true;group.add(m);return m;};
-  const l=mk(new THREE.BoxGeometry(.5,1.6,.5),0x223357,.8);l.position.x=-.35; const r=mk(new THREE.BoxGeometry(.5,1.6,.5),0x223357,.8);r.position.x=.35;
-  mk(new THREE.BoxGeometry(1.5,1.7,.9),0x2ee6a6,2.45); const bp=mk(new THREE.BoxGeometry(1,1.2,.5),0x14243a,2.45);bp.position.z=-.7;
-  mk(new THREE.SphereGeometry(.55,20,20),0xf0c9a0,3.75); const v=mk(new THREE.BoxGeometry(.9,.28,.2),0x4da6ff,3.8,0x4da6ff);v.position.z=.42;
+  function mk(geo,c,y,e){var m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:c,roughness:.7,emissive:e||0,emissiveIntensity:.5}));m.position.y=y;m.castShadow=true;group.add(m);return m;}
+  var l=mk(new THREE.BoxGeometry(.5,1.6,.5),0x223357,.8);l.position.x=-.35;var r=mk(new THREE.BoxGeometry(.5,1.6,.5),0x223357,.8);r.position.x=.35;
+  mk(new THREE.BoxGeometry(1.5,1.7,.9),0x2ee6a6,2.45);var bp=mk(new THREE.BoxGeometry(1,1.2,.5),0x14243a,2.45);bp.position.z=-.7;
+  mk(new THREE.SphereGeometry(.55,20,20),0xf0c9a0,3.75);var v=mk(new THREE.BoxGeometry(.9,.28,.2),0x4da6ff,3.8,0x4da6ff);v.position.z=.42;
   scene.add(group);
-  addEventListener("keydown",e=>{P.keys[e.code]=true;}); addEventListener("keyup",e=>{P.keys[e.code]=false;});
-  let drag=false,px=0,py=0;
-  canvas.addEventListener("mousedown",e=>{drag=true;px=e.clientX;py=e.clientY;}); addEventListener("mouseup",()=>drag=false);
-  addEventListener("mousemove",e=>{if(!drag)return; P.camYaw-=(e.clientX-px)*.005; P.camPitch+=(e.clientY-py)*.005; clampP(); px=e.clientX;py=e.clientY;});
-  canvas.addEventListener("wheel",e=>{P.camDist=Math.max(6,Math.min(20,P.camDist+Math.sign(e.deltaY)*1.2));},{passive:true});
-  let look=null;
-  canvas.addEventListener("touchstart",e=>{for(const t of e.changedTouches){if(t.clientX>innerWidth*.4&&look===null){look=t.identifier;px=t.clientX;py=t.clientY;}}},{passive:true});
-  canvas.addEventListener("touchmove",e=>{for(const t of e.changedTouches){if(t.identifier===look){P.camYaw-=(t.clientX-px)*.007;P.camPitch+=(t.clientY-py)*.007;clampP();px=t.clientX;py=t.clientY;}}},{passive:true});
-  const end=e=>{for(const t of e.changedTouches)if(t.identifier===look)look=null;}; canvas.addEventListener("touchend",end);canvas.addEventListener("touchcancel",end);
+  addEventListener("keydown",function(e){P.keys[e.code]=true;});addEventListener("keyup",function(e){P.keys[e.code]=false;});
+  var drag=false,px=0,py=0;
+  canvas.addEventListener("mousedown",function(e){drag=true;px=e.clientX;py=e.clientY;});addEventListener("mouseup",function(){drag=false;});
+  addEventListener("mousemove",function(e){if(!drag)return;P.camYaw-=(e.clientX-px)*.005;P.camPitch+=(e.clientY-py)*.005;clampP();px=e.clientX;py=e.clientY;});
+  canvas.addEventListener("wheel",function(e){P.camDist=Math.max(6,Math.min(20,P.camDist+(e.deltaY>0?1.2:-1.2)));},{passive:true});
+  var look=null;
+  canvas.addEventListener("touchstart",function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];if(t.clientX>innerWidth*.4&&look===null){look=t.identifier;px=t.clientX;py=t.clientY;}}},{passive:true});
+  canvas.addEventListener("touchmove",function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];if(t.identifier===look){P.camYaw-=(t.clientX-px)*.007;P.camPitch+=(t.clientY-py)*.007;clampP();px=t.clientX;py=t.clientY;}}},{passive:true});
+  function end(e){for(var i=0;i<e.changedTouches.length;i++)if(e.changedTouches[i].identifier===look)look=null;}
+  canvas.addEventListener("touchend",end);canvas.addEventListener("touchcancel",end);
   bindJoy();
 }
 function clampP(){P.camPitch=Math.max(.05,Math.min(1.15,P.camPitch));}
 function bindJoy(){
-  const stick=document.getElementById("joy"),knob=document.getElementById("knob"); if(!stick)return;
-  const R=45; let id=null,cx=0,cy=0;
-  const start=(x,y,pid)=>{id=pid;const r=stick.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;move(x,y);};
-  const move=(x,y)=>{let dx=x-cx,dy=y-cy;const d=Math.hypot(dx,dy);if(d>R){dx=dx/d*R;dy=dy/d*R;} knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`; P.joy.x=dx/R;P.joy.y=dy/R;P.joy.active=true;};
-  const end=()=>{id=null;knob.style.transform="translate(-50%,-50%)";P.joy={x:0,y:0,active:false};};
-  stick.addEventListener("touchstart",e=>{const t=e.changedTouches[0];start(t.clientX,t.clientY,t.identifier);},{passive:true});
-  stick.addEventListener("touchmove",e=>{for(const t of e.changedTouches)if(t.identifier===id)move(t.clientX,t.clientY);},{passive:true});
-  stick.addEventListener("touchend",e=>{for(const t of e.changedTouches)if(t.identifier===id)end();});
-  stick.addEventListener("mousedown",e=>start(e.clientX,e.clientY,"m")); addEventListener("mousemove",e=>{if(id==="m")move(e.clientX,e.clientY);}); addEventListener("mouseup",()=>{if(id==="m")end();});
+  var stick=document.getElementById("joy"),knob=document.getElementById("knob");if(!stick)return;
+  var R=45,id=null,cx=0,cy=0;
+  function start(x,y,pid){id=pid;var r=stick.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;move(x,y);}
+  function move(x,y){var dx=x-cx,dy=y-cy,d=Math.hypot(dx,dy);if(d>R){dx=dx/d*R;dy=dy/d*R;}knob.style.transform="translate(calc(-50% + "+dx+"px),calc(-50% + "+dy+"px))";P.joy.x=dx/R;P.joy.y=dy/R;P.joy.active=true;}
+  function end(){id=null;knob.style.transform="translate(-50%,-50%)";P.joy={x:0,y:0,active:false};}
+  stick.addEventListener("touchstart",function(e){var t=e.changedTouches[0];start(t.clientX,t.clientY,t.identifier);},{passive:true});
+  stick.addEventListener("touchmove",function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];if(t.identifier===id)move(t.clientX,t.clientY);}},{passive:true});
+  stick.addEventListener("touchend",function(e){for(var i=0;i<e.changedTouches.length;i++)if(e.changedTouches[i].identifier===id)end();});
+  stick.addEventListener("mousedown",function(e){start(e.clientX,e.clientY,"m");});addEventListener("mousemove",function(e){if(id==="m")move(e.clientX,e.clientY);});addEventListener("mouseup",function(){if(id==="m")end();});
 }
 function updatePlayer(dt){
-  let mZ=0,mX=0;
-  if(P.keys.KeyW||P.keys.ArrowUp)mZ+=1; if(P.keys.KeyS||P.keys.ArrowDown)mZ-=1;
-  if(P.keys.KeyD||P.keys.ArrowRight)mX+=1; if(P.keys.KeyA||P.keys.ArrowLeft)mX-=1;
+  var mZ=0,mX=0;
+  if(P.keys.KeyW||P.keys.ArrowUp)mZ+=1;if(P.keys.KeyS||P.keys.ArrowDown)mZ-=1;
+  if(P.keys.KeyD||P.keys.ArrowRight)mX+=1;if(P.keys.KeyA||P.keys.ArrowLeft)mX-=1;
   if(P.joy.active){mZ+=-P.joy.y;mX+=P.joy.x;}
-  const fX=-Math.sin(P.camYaw),fZ=-Math.cos(P.camYaw),rX=Math.cos(P.camYaw),rZ=-Math.sin(P.camYaw);
-  let dx=fX*mZ+rX*mX,dz=fZ*mZ+rZ*mX; const len=Math.hypot(dx,dz),moving=len>.01;
-  if(moving){dx/=len;dz/=len; P.pos.x+=dx*14*dt; P.pos.z+=dz*14*dt;
-    const tgt=Math.atan2(dx,dz); let df=tgt-P.facing; while(df>Math.PI)df-=Math.PI*2; while(df<-Math.PI)df+=Math.PI*2; P.facing+=df*Math.min(1,10*dt);}
-  // scope
-  if(Math.hypot(P.pos.x,P.pos.z)>SCOPE){const l=Math.hypot(P.pos.x,P.pos.z)||1;P.pos.x*=(SCOPE-3)/l;P.pos.z*=(SCOPE-3)/l; toast("⚠️ OUT OF SCOPE / خارج النطاق",true);}
+  var fX=-Math.sin(P.camYaw),fZ=-Math.cos(P.camYaw),rX=Math.cos(P.camYaw),rZ=-Math.sin(P.camYaw);
+  var dx=fX*mZ+rX*mX,dz=fZ*mZ+rZ*mX,len=Math.hypot(dx,dz),moving=len>.01;
+  if(moving){dx/=len;dz/=len;P.pos.x+=dx*14*dt;P.pos.z+=dz*14*dt;
+    var tgt=Math.atan2(dx,dz),df=tgt-P.facing;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;P.facing+=df*Math.min(1,10*dt);}
+  if(Math.hypot(P.pos.x,P.pos.z)>SCOPE){var ln=Math.hypot(P.pos.x,P.pos.z)||1;P.pos.x*=(SCOPE-3)/ln;P.pos.z*=(SCOPE-3)/ln;toast("⚠️ OUT OF SCOPE / خارج النطاق",true);}
   P.pos.y=heightAt(P.pos.x,P.pos.z);
-  group.position.set(P.pos.x,P.pos.y+(moving?Math.abs(Math.sin(performance.now()*.012))*.15:0),P.pos.z); group.rotation.y=P.facing;
-  const cp=Math.cos(P.camPitch),sp=Math.sin(P.camPitch);
-  const ideal=new THREE.Vector3(P.pos.x+Math.sin(P.camYaw)*cp*P.camDist,P.pos.y+sp*P.camDist+3,P.pos.z+Math.cos(P.camYaw)*cp*P.camDist);
-  const gy=heightAt(ideal.x,ideal.z)+1.5; if(ideal.y<gy)ideal.y=gy;
-  P.cam.lerp(ideal,P.init?1-Math.pow(.002,dt):1); P.init=true;
-  camera.position.copy(P.cam); camera.lookAt(P.pos.x,P.pos.y+2.6,P.pos.z);
+  group.position.set(P.pos.x,P.pos.y+(moving?Math.abs(Math.sin(performance.now()*.012))*.15:0),P.pos.z);group.rotation.y=P.facing;
+  var cp=Math.cos(P.camPitch),sp=Math.sin(P.camPitch);
+  var ideal=new THREE.Vector3(P.pos.x+Math.sin(P.camYaw)*cp*P.camDist,P.pos.y+sp*P.camDist+3,P.pos.z+Math.cos(P.camYaw)*cp*P.camDist);
+  var gy=heightAt(ideal.x,ideal.z)+1.5;if(ideal.y<gy)ideal.y=gy;
+  P.cam.lerp(ideal,P.init?1-Math.pow(.002,dt):1);P.init=true;
+  camera.position.copy(P.cam);camera.lookAt(P.pos.x,P.pos.y+2.6,P.pos.z);
 }
 
 /* ---------- BAC lab ---------- */
-const ACCOUNTS={"1001":{name:"Sara Malik",role:"user",balance:"$4,120",secret:"IBAN ****1001"},"1002":{name:"YOU (student)",role:"user",balance:"$260",secret:"your own data"},"1003":{name:"Omar Nabil",role:"user",balance:"$18,750",secret:"IBAN ****1003"}};
-const FLAG="FLAG{broken_access_control_admin_pwned}";
+var ACCOUNTS={"1001":{name:"Sara Malik",role:"user",balance:"$4,120",secret:"IBAN ****1001"},"1002":{name:"YOU (student)",role:"user",balance:"$260",secret:"your own data"},"1003":{name:"Omar Nabil",role:"user",balance:"$18,750",secret:"IBAN ****1003"}};
+var FLAG="FLAG{broken_access_control_admin_pwned}";
 function renderLab(root,onDone){
-  const st={idor:false,admin:false};
-  root.innerHTML=`
-   <div style="background:#0b1120;border:1px solid #243252;border-radius:10px;padding:12px;margin:10px 0">
-     <div style="color:#ffd166;font-weight:700;font-size:13px;margin-bottom:6px">🎯 Objectives</div>
-     <div style="font-size:13px;margin:4px 0"><span id="g1">⬜</span> 1. IDOR — view another user (change the <code>id</code>)</div>
-     <div style="font-size:13px;margin:4px 0"><span id="g2">⬜</span> 2. Forced browsing — open <code>/admin</code> directly</div>
-   </div>
-   <div style="background:#0b1120;border:1px solid #243252;border-radius:12px;overflow:hidden;margin:10px 0">
-     <div style="display:flex;gap:8px;align-items:center;background:#1a2540;padding:8px;border-bottom:1px solid #243252">
-       <span style="color:#8ea0c8;font:12px monospace">🔒 https://acmebank.lab</span>
-       <input id="addr" value="/account?id=1002" spellcheck="false" style="flex:1;background:#0b1120;border:1px solid #243252;border-radius:8px;padding:9px 12px;color:#e6ecff;font:13px monospace;outline:none;margin:0"/>
-       <button id="go" style="background:#2ee6a6;color:#04121a;border:none;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Go</button>
-     </div>
-     <div style="display:flex;gap:14px;padding:8px 16px;background:#121a2e;border-bottom:1px solid #243252;font-size:13px">
-       <span id="nHome" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🏠 My Account</span>
-       <span id="nAdmin" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🛡️ Admin Panel</span>
-     </div>
-     <div id="page" style="padding:16px;min-height:140px;font-size:14px;line-height:1.7"></div>
-   </div>
-   <div style="display:flex;gap:10px;align-items:center">
-     <button id="hintBtn" class="btn-ghost" style="padding:9px 14px;border-radius:8px;border:none">💡 Hint</button>
-     <button id="giveUp" class="btn-ghost" style="padding:9px 14px;border-radius:8px;border:none">Leave</button>
-     <span id="hint" style="font-size:12.5px;color:#8ea0c8"></span>
-   </div>
-   <div id="fb"></div>`;
-  const q=s=>root.querySelector(s), addr=q("#addr"), page=q("#page");
-  function nav(raw){ SFX.click(); let path=raw.trim().replace(/^https?:\/\/[^/]+/,""); if(!path.startsWith("/"))path="/"+path; addr.value=path;
-    const [p,qs]=path.split("?"); const id=new URLSearchParams(qs||"").get("id")||"1002";
-    if(p==="/account"){ const a=ACCOUNTS[id]; if(!a){page.innerHTML=`<b style="color:#ff5470">404</b> — no account #${id}`;return;}
-      page.innerHTML=`<h3 style="color:#4da6ff">Account #${id} — ${a.name}</h3><div>Role: <b>${a.role}</b></div><div>Balance: <b>${a.balance}</b></div><div style="color:#ffd166">Private: ${a.secret}</div>${id!=="1002"?`<div style="margin-top:8px;color:#2ee6a6">⚠️ You're viewing someone else's data — server never checked!</div>`:""}`;
-      if(id!=="1002"&&!st.idor){st.idor=true;q("#g1").textContent="✅";SFX.ok();q("#hint").textContent="IDOR done! Now type /admin";}
-    } else if(p==="/admin"){ page.innerHTML=`<h3 style="color:#ff5470">🛡️ ADMIN PANEL</h3><div>Users: 3 · Pending transfers: 12</div><div style="margin-top:10px;background:#04121a;border:1px dashed #2ee6a6;border-radius:8px;padding:10px;color:#2ee6a6;font:13px monospace">${FLAG}</div>`;
-      if(!st.admin){st.admin=true;q("#g2").textContent="✅";SFX.ok();}
-    } else page.innerHTML=`<b style="color:#ff5470">404</b> — ${p}`;
-    if(st.idor&&st.admin)win();
-  }
-  function win(){ SFX.win(); q("#fb").className="feedback good";
-    q("#fb").innerHTML=`✅ <b>Lab solved!</b> You exploited BAC via IDOR + forced browsing.<br/><b>Fix:</b> enforce authorization server-side on every request, deny by default.<br/><span dir="rtl">الإصلاح: طبّق التحكم على الخادم لكل طلب وارفض افتراضيًا.</span><div style="margin-top:12px"><button id="cap" class="btn-go" style="padding:11px 18px;border-radius:8px;border:none;font-weight:700">Capture flag 🚩</button></div>`;
-    q("#cap").onclick=()=>{SFX.click();onDone(true);};
-  }
-  q("#go").onclick=()=>nav(addr.value); addr.addEventListener("keydown",e=>{if(e.key==="Enter")nav(addr.value);});
-  q("#nHome").onclick=()=>nav("/account?id=1002");
-  q("#nAdmin").onclick=()=>{SFX.bad();page.innerHTML=`<b style="color:#ff5470">403 Forbidden</b> — button blocked for non-admins.<div style="margin-top:8px;color:#8ea0c8">…but is that the only way to reach it? 🤔</div>`;};
-  q("#hintBtn").onclick=()=>{SFX.click();q("#hint").textContent=st.idor?"Type /admin in the address bar and press Go.":"Change id=1002 to 1001 and press Go.";};
-  q("#giveUp").onclick=()=>{SFX.click();onDone(false);};
+  var st={idor:false,admin:false};
+  root.innerHTML='<div style="background:#0b1120;border:1px solid #243252;border-radius:10px;padding:12px;margin:10px 0"><div style="color:#ffd166;font-weight:700;font-size:13px;margin-bottom:6px">🎯 Objectives</div><div style="font-size:13px;margin:4px 0"><span id="g1">⬜</span> 1. IDOR — view another user (change the <code>id</code>)</div><div style="font-size:13px;margin:4px 0"><span id="g2">⬜</span> 2. Forced browsing — open <code>/admin</code> directly</div></div><div style="background:#0b1120;border:1px solid #243252;border-radius:12px;overflow:hidden;margin:10px 0"><div style="display:flex;gap:8px;align-items:center;background:#1a2540;padding:8px;border-bottom:1px solid #243252"><span style="color:#8ea0c8;font:12px monospace">🔒 https://acmebank.lab</span><input id="addr" value="/account?id=1002" spellcheck="false" style="flex:1;background:#0b1120;border:1px solid #243252;border-radius:8px;padding:9px 12px;color:#e6ecff;font:13px monospace;outline:none;margin:0"/><button id="go" style="background:#2ee6a6;color:#04121a;border:none;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Go</button></div><div style="display:flex;gap:14px;padding:8px 16px;background:#121a2e;border-bottom:1px solid #243252;font-size:13px"><span id="nHome" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🏠 My Account</span><span id="nAdmin" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🛡️ Admin Panel</span></div><div id="page" style="padding:16px;min-height:140px;font-size:14px;line-height:1.7"></div></div><div style="display:flex;gap:10px;align-items:center"><button id="hintBtn" class="btn-ghost" style="padding:9px 14px;border-radius:8px;border:none">💡 Hint</button><button id="giveUp" class="btn-ghost" style="padding:9px 14px;border-radius:8px;border:none">Leave</button><span id="hint" style="font-size:12.5px;color:#8ea0c8"></span></div><div id="fb"></div>';
+  function q(s){return root.querySelector(s);}
+  var addr=q("#addr"),page=q("#page");
+  function nav(raw){SFX.click();var path=raw.replace(/^https?:\/\/[^/]+/,"").trim();if(path.charAt(0)!=="/")path="/"+path;addr.value=path;
+    var parts=path.split("?"),pth=parts[0];var id=(new URLSearchParams(parts[1]||"")).get("id")||"1002";
+    if(pth==="/account"){var a=ACCOUNTS[id];if(!a){page.innerHTML='<b style="color:#ff5470">404</b> — no account #'+id;return;}
+      page.innerHTML='<h3 style="color:#4da6ff">Account #'+id+' — '+a.name+'</h3><div>Role: <b>'+a.role+'</b></div><div>Balance: <b>'+a.balance+'</b></div><div style="color:#ffd166">Private: '+a.secret+'</div>'+(id!=="1002"?'<div style="margin-top:8px;color:#2ee6a6">⚠️ You are viewing someone else\'s data — server never checked!</div>':'');
+      if(id!=="1002"&&!st.idor){st.idor=true;q("#g1").textContent="✅";SFX.ok();q("#hint").textContent="IDOR done! Now type /admin";}}
+    else if(pth==="/admin"){page.innerHTML='<h3 style="color:#ff5470">🛡️ ADMIN PANEL</h3><div>Users: 3 · Pending transfers: 12</div><div style="margin-top:10px;background:#04121a;border:1px dashed #2ee6a6;border-radius:8px;padding:10px;color:#2ee6a6;font:13px monospace">'+FLAG+'</div>';
+      if(!st.admin){st.admin=true;q("#g2").textContent="✅";SFX.ok();}}
+    else page.innerHTML='<b style="color:#ff5470">404</b> — '+pth;
+    if(st.idor&&st.admin)win();}
+  function win(){SFX.win();q("#fb").className="feedback good";
+    q("#fb").innerHTML='✅ <b>Lab solved!</b> You exploited BAC via IDOR + forced browsing.<br/><b>Fix:</b> enforce authorization server-side on every request, deny by default.<br/><span dir="rtl">الإصلاح: طبّق التحكم على الخادم لكل طلب وارفض افتراضيًا.</span><div style="margin-top:12px"><button id="cap" class="btn-go" style="padding:11px 18px;border-radius:8px;border:none;font-weight:700">Capture flag 🚩</button></div>';
+    q("#cap").onclick=function(){SFX.click();onDone(true);};}
+  q("#go").onclick=function(){nav(addr.value);};addr.addEventListener("keydown",function(e){if(e.key==="Enter")nav(addr.value);});
+  q("#nHome").onclick=function(){nav("/account?id=1002");};
+  q("#nAdmin").onclick=function(){SFX.bad();page.innerHTML='<b style="color:#ff5470">403 Forbidden</b> — button blocked for non-admins.<div style="margin-top:8px;color:#8ea0c8">…but is that the only way to reach it? 🤔</div>';};
+  q("#hintBtn").onclick=function(){SFX.click();q("#hint").textContent=st.idor?"Type /admin in the address bar and press Go.":"Change id=1002 to 1001 and press Go.";};
+  q("#giveUp").onclick=function(){SFX.click();onDone(false);};
   nav("/account?id=1002");
 }
 
 /* ---------- UI ---------- */
-const $=id=>document.getElementById(id);
-let solved=false, tt;
-function toast(m,bad){const t=$("toast");t.textContent=m;t.className="toast"+(bad?" bad":"");t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2400);}
+function $(id){return document.getElementById(id);}
+var solved=false,tt;
+function toast(m,bad){var t=$("toast");t.textContent=m;t.className="toast"+(bad?" bad":"");t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true;},2400);}
 function closeModal(){$("modalRoot").hidden=true;$("modalRoot").innerHTML="";}
-function showCard(){ SFX.disc();
-  $("modalRoot").hidden=false;
-  $("modalRoot").innerHTML=`<div class="modal"><div class="tagline">OWASP Top 10 · Hands-on</div>
-    <h2>${NODE.title.en}</h2><div class="ar">${NODE.title.ar}</div>
-    <div class="body">${NODE.card.en}</div><div class="body ar">${NODE.card.ar}</div>
-    <div class="actions"><button class="btn-go" id="enter">${solved?"Replay lab":"Enter the lab 🧪"}</button><button class="btn-ghost" id="later">Later</button></div></div>`;
-  $("enter").onclick=()=>{SFX.click();showLab();}; $("later").onclick=()=>{SFX.click();closeModal();};
-}
+function showCard(){SFX.disc();$("modalRoot").hidden=false;
+  $("modalRoot").innerHTML='<div class="modal"><div class="tagline">OWASP Top 10 · Hands-on</div><h2>'+NODE.title.en+'</h2><div class="ar">'+NODE.title.ar+'</div><div class="body">'+NODE.card.en+'</div><div class="body ar">'+NODE.card.ar+'</div><div class="actions"><button class="btn-go" id="enter">'+(solved?"Replay lab":"Enter the lab 🧪")+'</button><button class="btn-ghost" id="later">Later</button></div></div>';
+  $("enter").onclick=function(){SFX.click();showLab();};$("later").onclick=function(){SFX.click();closeModal();};}
 function showLab(){
-  $("modalRoot").innerHTML=`<div class="modal"><div class="tagline">🧪 Hands-on Lab · +${NODE.xp} XP</div><h2>Lab: Broken Access Control</h2><div class="ar">معمل: التحكم المعطّل بالوصول</div><div id="mount"></div></div>`;
-  renderLab($("mount"),ok=>{ if(ok){ solved=true; $("flag").textContent="🚩 1/1"; $("obj").textContent="✅ Flag captured / تم الالتقاط"; nodeGroup.userData.core.material.color.set(0xffd166); nodeGroup.userData.core.material.emissive.set(0xffd166); showWin(); } else closeModal(); });
-}
-function showWin(){ SFX.win();
-  $("modalRoot").innerHTML=`<div class="modal"><h2>🎉 Engagement complete!</h2><div class="ar">اكتملت المهمة!</div><div class="body">You exploited Broken Access Control end-to-end — IDOR + forced browsing — and captured the flag.</div><div class="body ar">استغللت الثغرة بالكامل والتقطت الفلاج.</div><div class="actions"><button class="btn-go" id="roam">Free roam / تجوّل</button></div></div>`;
-  $("roam").onclick=()=>{SFX.click();closeModal();};
-}
+  $("modalRoot").innerHTML='<div class="modal"><div class="tagline">🧪 Hands-on Lab · +'+NODE.xp+' XP</div><h2>Lab: Broken Access Control</h2><div class="ar">معمل: التحكم المعطّل بالوصول</div><div id="mount"></div></div>';
+  renderLab($("mount"),function(ok){if(ok){solved=true;$("flag").textContent="🚩 1/1";$("obj").textContent="✅ Flag captured / تم الالتقاط";nodeGroup.userData.core.material.color.set(0xffd166);nodeGroup.userData.core.material.emissive.set(0xffd166);showWin();}else closeModal();});}
+function showWin(){SFX.win();
+  $("modalRoot").innerHTML='<div class="modal"><h2>🎉 Engagement complete!</h2><div class="ar">اكتملت المهمة!</div><div class="body">You exploited Broken Access Control end-to-end — IDOR + forced browsing — and captured the flag.</div><div class="body ar">استغللت الثغرة بالكامل والتقطت الفلاج.</div><div class="actions"><button class="btn-go" id="roam">Free roam / تجوّل</button></div></div>';
+  $("roam").onclick=function(){SFX.click();closeModal();};}
 
 /* ---------- main ---------- */
-const isTouch=matchMedia("(pointer:coarse)").matches||"ontouchstart" in window;
-const clock=new THREE.Clock(); let running=false, near=false;
-function tryInteract(){ if(!$("modalRoot").hidden)return; const d=Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z);
-  if(d>7){toast("Get closer to AcmeBank / اقترب",true);return;} showCard(); }
+var isTouch=matchMedia("(pointer:coarse)").matches||"ontouchstart" in window;
+var clock=new THREE.Clock(),running=false,near=false;
+function tryInteract(){if(!$("modalRoot").hidden)return;var d=Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z);if(d>7){toast("Get closer to AcmeBank / اقترب",true);return;}showCard();}
 function start(){
-  const name=($("pname").value||"").trim()||"Agent";
-  $("boot").hidden=true; $("hud").hidden=false; if(isTouch)$("touch").hidden=false;
-  $("obj").textContent="🎯 Reach AcmeBank & press E / اذهب واضغط E";
-  const canvas=$("scene");
-  renderer=new THREE.WebGLRenderer({canvas,antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight);
-  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05; renderer.outputColorSpace=THREE.SRGBColorSpace;
-  camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
-  buildWorld(); buildPlayer();
-  addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-  addEventListener("keydown",e=>{if(e.code==="KeyE")tryInteract();if(e.code==="Escape")closeModal();});
-  $("tint").onclick=tryInteract;
-  $("helpBtn").onclick=()=>toast("WASD/joystick move · drag = camera · E = enter lab");
-  $("muteBtn").onclick=()=>{muted=!muted;$("muteBtn").textContent=muted?"🔇":"🔊";};
-  running=true; loop();
+  try{
+    if(typeof THREE==='undefined'){showErr('Three.js not loaded — connect to the internet and refresh.');return;}
+    P.pos=new THREE.Vector3(0,0,6);P.cam=new THREE.Vector3();
+    $("boot").hidden=true;$("hud").hidden=false;if(isTouch)$("touch").hidden=false;
+    $("obj").textContent="🎯 Reach AcmeBank & press E / اذهب واضغط E";
+    var canvas=$("scene");
+    renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+    renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.outputEncoding=THREE.sRGBEncoding;
+    camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
+    buildWorld();buildPlayer();
+    addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+    addEventListener("keydown",function(e){if(e.code==="KeyE")tryInteract();if(e.code==="Escape")closeModal();});
+    $("tint").onclick=tryInteract;
+    $("helpBtn").onclick=function(){toast("WASD/joystick move · drag = camera · E = enter lab");};
+    $("muteBtn").onclick=function(){muted=!muted;$("muteBtn").textContent=muted?"🔇":"🔊";};
+    running=true;loop();
+  }catch(e){showErr('start(): '+(e&&e.message)+' \n'+(e&&e.stack));}
 }
-function loop(){ if(!running)return; requestAnimationFrame(loop);
-  const dt=Math.min(clock.getDelta(),.05); updatePlayer(dt);
-  const t=performance.now()*.001;
-  nodeGroup.userData.core.rotation.y+=dt*1.2; nodeGroup.userData.ring.rotation.z+=dt*.8; nodeGroup.userData.core.position.y=2.4+Math.sin(t*2)*.15;
-  if(sun){sun.position.set(P.pos.x+40,P.pos.y+80,P.pos.z+30); sun.target.position.set(P.pos.x,P.pos.y,P.pos.z);}
-  const d=Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z);
-  if(d<7&&!near){near=true;if(!solved)toast("✨ Press E to enter the lab / اضغط E");} else if(d>=7)near=false;
-  renderer.render(scene,camera);
+function loop(){
+  try{
+    if(!running)return;requestAnimationFrame(loop);
+    var dt=Math.min(clock.getDelta(),.05);updatePlayer(dt);
+    var t=performance.now()*.001;
+    nodeGroup.userData.core.rotation.y+=dt*1.2;nodeGroup.userData.ring.rotation.z+=dt*.8;nodeGroup.userData.core.position.y=2.4+Math.sin(t*2)*.15;
+    if(sun){sun.position.set(P.pos.x+40,P.pos.y+80,P.pos.z+30);sun.target.position.set(P.pos.x,P.pos.y,P.pos.z);}
+    var d=Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z);
+    if(d<7&&!near){near=true;if(!solved)toast("✨ Press E to enter the lab / اضغط E");}else if(d>=7)near=false;
+    renderer.render(scene,camera);
+  }catch(e){running=false;showErr('loop(): '+(e&&e.message));}
 }
-$("startBtn").onclick=start;
+document.getElementById("startBtn").onclick=start;
 </script>
 </body>
 </html>
