@@ -32,8 +32,7 @@ input{width:100%;background:#0b1120;border:1px solid #243252;border-radius:10px;
 .md{background:#121a2e;border:1px solid #243252;border-radius:16px;padding:22px;max-width:720px;width:100%}
 .md h2{color:#2ee6a6;font-size:20px;margin-bottom:4px}
 .ar{direction:rtl;color:#4da6ff;font-size:15px;margin-bottom:12px;font-weight:600}
-.by{font-size:14px;line-height:1.7;margin-bottom:8px}
-.by.ar{color:#8ea0c8}
+.by{font-size:14px;line-height:1.7;margin-bottom:8px}.by.ar{color:#8ea0c8}
 .act{display:flex;gap:10px;margin-top:14px}
 .act button{flex:1;padding:12px;border-radius:10px;border:none;font-weight:700;cursor:pointer;font-size:14px}
 .go{background:#2ee6a6;color:#04121a}.gh{background:#1a2540;color:#e6ecff;border:1px solid #243252}
@@ -51,7 +50,7 @@ function showErr(m){var d=document.getElementById("err");if(d){d.style.display="
   <div class="sub">Broken Access Control Lab — <span dir="rtl">معمل BAC</span></div>
   <input id="pname" maxlength="20" placeholder="اسمك / Agent name"/>
   <button id="startBtn" class="bp" disabled>⏳ Loading… / جاري التحميل…</button>
-  <div class="how"><b>تحكم:</b> WASD / الجويستيك = تحرّك · اسحب الماوس = كاميرا · <b>E</b> = ادخل المعمل المتوهّج.</div>
+  <div class="how"><b>تحكم:</b> WASD / الجويستيك = تحرّك · اسحب الماوس = كاميرا · العجلة = زووم · <b>E</b> = ادخل المعمل المتوهّج.</div>
 </div></div>
 <div id="hud" class="hud" hidden>
   <div class="top"><div class="bg">🕵️ Pentester</div><div id="obj" class="ob"></div><div id="flag" class="fl">🚩 0/1</div></div>
@@ -60,121 +59,12 @@ function showErr(m){var d=document.getElementById("err");if(d){d.style.display="
 <div id="touch" class="tc" hidden><div id="joy" class="joy"><div id="kn" class="kn"></div></div><button id="ti" class="ti">E</button></div>
 <div id="mr" class="mr" hidden></div>
 <canvas id="scene"></canvas>
+
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
-<script>
-if(typeof THREE==="undefined")showErr("Three.js not loaded — connect to internet & refresh.");
-var NODE={pos:{x:0,z:-30}},SCOPE=110;
-function H(x,z){return Math.sin(x*.035)*2.2+Math.cos(z*.03)*2+Math.sin((x+z)*.012)*1.4;}
-var scene,camera,renderer,ng,grp;
-var P={pos:null,face:Math.PI,cy:0,cp:.4,cd:12,keys:{},joy:{x:0,y:0,a:false},cam:null,init:false};
-function $(i){return document.getElementById(i);}
-function buildWorld(){
-  scene=new THREE.Scene();scene.background=new THREE.Color(0x3a72a0);scene.fog=new THREE.Fog(0x3a72a0,80,300);
-  scene.add(new THREE.HemisphereLight(0xcfe6ff,0x2a3a2a,1.2));
-  var d=new THREE.DirectionalLight(0xfff2df,1.4);d.position.set(40,80,30);scene.add(d);
-  var g=new THREE.PlaneGeometry(400,400,90,90);g.rotateX(-Math.PI/2);
-  var p=g.attributes.position;for(var i=0;i<p.count;i++)p.setY(i,H(p.getX(i),p.getZ(i)));
-  g.computeVertexNormals();
-  scene.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x2c6e57,roughness:.95,flatShading:true})));
-  var gh=new THREE.GridHelper(400,80,0x63e0b0,0x2f5a70);gh.position.y=.05;gh.material.opacity=.2;gh.material.transparent=true;scene.add(gh);
-  var by=H(NODE.pos.x,NODE.pos.z);
-  var bank=new THREE.Mesh(new THREE.BoxGeometry(14,20,12),new THREE.MeshStandardMaterial({color:0x24406a,flatShading:true}));
-  bank.position.set(NODE.pos.x,by+10,NODE.pos.z-4);scene.add(bank);
-  var sg=new THREE.Mesh(new THREE.BoxGeometry(10,2.4,.6),new THREE.MeshStandardMaterial({color:0xffd166,emissive:0xffd166,emissiveIntensity:.7}));
-  sg.position.set(NODE.pos.x,by+16,NODE.pos.z+2.2);scene.add(sg);scene.add(label("🏦 AcmeBank",NODE.pos.x,by+22,NODE.pos.z-4));
-  ng=new THREE.Group();ng.position.set(NODE.pos.x,by,NODE.pos.z);
-  var core=new THREE.Mesh(new THREE.OctahedronGeometry(1.2,0),new THREE.MeshStandardMaterial({color:0x2ee6a6,emissive:0x2ee6a6,emissiveIntensity:1,flatShading:true}));core.position.y=2.4;ng.add(core);
-  var ring=new THREE.Mesh(new THREE.TorusGeometry(1.8,.08,8,28),new THREE.MeshStandardMaterial({color:0x4da6ff,emissive:0x4da6ff,emissiveIntensity:.9}));ring.rotation.x=Math.PI/2;ring.position.y=2.4;ng.add(ring);
-  var beam=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,40,6),new THREE.MeshBasicMaterial({color:0x2ee6a6,transparent:true,opacity:.18}));beam.position.y=20;ng.add(beam);
-  ng.userData={core:core,ring:ring};scene.add(ng);
-}
-function label(t,x,y,z){var c=document.createElement("canvas");c.width=512;c.height=140;var g=c.getContext("2d");
-  g.fillStyle="rgba(10,14,26,.82)";g.fillRect(0,0,512,140);g.strokeStyle="#ffd166";g.lineWidth=8;g.strokeRect(6,6,500,128);
-  g.fillStyle="#e6ecff";g.textAlign="center";g.font="bold 52px Segoe UI";g.fillText(t,256,92);
-  var s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));s.scale.set(16,4.4,1);s.position.set(x,y,z);return s;}
-function buildPlayer(){
-  var cv=$("scene");grp=new THREE.Group();
-  function mk(ge,c,y,e){var m=new THREE.Mesh(ge,new THREE.MeshStandardMaterial({color:c,roughness:.7,emissive:e||0,emissiveIntensity:.5}));m.position.y=y;grp.add(m);return m;}
-  var a=mk(new THREE.BoxGeometry(.5,1.6,.5),0x223357,.8);a.position.x=-.35;var b=mk(new THREE.BoxGeometry(.5,1.6,.5),0x223357,.8);b.position.x=.35;
-  mk(new THREE.BoxGeometry(1.5,1.7,.9),0x2ee6a6,2.45);var bp=mk(new THREE.BoxGeometry(1,1.2,.5),0x14243a,2.45);bp.position.z=-.7;
-  mk(new THREE.SphereGeometry(.55,18,18),0xf0c9a0,3.75);var v=mk(new THREE.BoxGeometry(.9,.28,.2),0x4da6ff,3.8,0x4da6ff);v.position.z=.42;
-  scene.add(grp);
-  addEventListener("keydown",function(e){P.keys[e.code]=true;});addEventListener("keyup",function(e){P.keys[e.code]=false;});
-  var dr=false,px=0,py=0;
-  cv.addEventListener("mousedown",function(e){dr=true;px=e.clientX;py=e.clientY;});addEventListener("mouseup",function(){dr=false;});
-  addEventListener("mousemove",function(e){if(!dr)return;P.cy-=(e.clientX-px)*.005;P.cp+=(e.clientY-py)*.005;cl();px=e.clientX;py=e.clientY;});
-  cv.addEventListener("wheel",function(e){P.cd=Math.max(6,Math.min(20,P.cd+(e.deltaY>0?1.2:-1.2)));},{passive:true});
-  var lk=null;
-  cv.addEventListener("touchstart",function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];if(t.clientX>innerWidth*.4&&lk===null){lk=t.identifier;px=t.clientX;py=t.clientY;}}},{passive:true});
-  cv.addEventListener("touchmove",function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];if(t.identifier===lk){P.cy-=(t.clientX-px)*.007;P.cp+=(t.clientY-py)*.007;cl();px=t.clientX;py=t.clientY;}}},{passive:true});
-  function en(e){for(var i=0;i<e.changedTouches.length;i++)if(e.changedTouches[i].identifier===lk)lk=null;}
-  cv.addEventListener("touchend",en);cv.addEventListener("touchcancel",en);joyBind();
-}
-function cl(){P.cp=Math.max(.05,Math.min(1.15,P.cp));}
-function joyBind(){var s=$("joy"),k=$("kn");if(!s)return;var R=44,id=null,cx=0,cy=0;
-  function st(x,y,pid){id=pid;var r=s.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;mv(x,y);}
-  function mv(x,y){var dx=x-cx,dy=y-cy,d=Math.hypot(dx,dy);if(d>R){dx=dx/d*R;dy=dy/d*R;}k.style.transform="translate(calc(-50% + "+dx+"px),calc(-50% + "+dy+"px))";P.joy.x=dx/R;P.joy.y=dy/R;P.joy.a=true;}
-  function en(){id=null;k.style.transform="translate(-50%,-50%)";P.joy={x:0,y:0,a:false};}
-  s.addEventListener("touchstart",function(e){var t=e.changedTouches[0];st(t.clientX,t.clientY,t.identifier);},{passive:true});
-  s.addEventListener("touchmove",function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];if(t.identifier===id)mv(t.clientX,t.clientY);}},{passive:true});
-  s.addEventListener("touchend",function(e){for(var i=0;i<e.changedTouches.length;i++)if(e.changedTouches[i].identifier===id)en();});
-  s.addEventListener("mousedown",function(e){st(e.clientX,e.clientY,"m");});addEventListener("mousemove",function(e){if(id==="m")mv(e.clientX,e.clientY);});addEventListener("mouseup",function(){if(id==="m")en();});
-}
-function upP(dt){var mz=0,mx=0;
-  if(P.keys.KeyW||P.keys.ArrowUp)mz+=1;if(P.keys.KeyS||P.keys.ArrowDown)mz-=1;if(P.keys.KeyD||P.keys.ArrowRight)mx+=1;if(P.keys.KeyA||P.keys.ArrowLeft)mx-=1;
-  if(P.joy.a){mz+=-P.joy.y;mx+=P.joy.x;}
-  var fx=-Math.sin(P.cy),fz=-Math.cos(P.cy),rx=Math.cos(P.cy),rz=-Math.sin(P.cy),dx=fx*mz+rx*mx,dz=fz*mz+rz*mx,ln=Math.hypot(dx,dz),mo=ln>.01;
-  if(mo){dx/=ln;dz/=ln;P.pos.x+=dx*14*dt;P.pos.z+=dz*14*dt;var tg=Math.atan2(dx,dz),df=tg-P.face;while(df>Math.PI)df-=6.283;while(df<-Math.PI)df+=6.283;P.face+=df*Math.min(1,10*dt);}
-  if(Math.hypot(P.pos.x,P.pos.z)>SCOPE){var l=Math.hypot(P.pos.x,P.pos.z)||1;P.pos.x*=(SCOPE-3)/l;P.pos.z*=(SCOPE-3)/l;toast("⚠️ OUT OF SCOPE / خارج النطاق",1);}
-  P.pos.y=H(P.pos.x,P.pos.z);grp.position.set(P.pos.x,P.pos.y+(mo?Math.abs(Math.sin(performance.now()*.012))*.15:0),P.pos.z);grp.rotation.y=P.face;
-  var cp=Math.cos(P.cp),sp=Math.sin(P.cp),id=new THREE.Vector3(P.pos.x+Math.sin(P.cy)*cp*P.cd,P.pos.y+sp*P.cd+3,P.pos.z+Math.cos(P.cy)*cp*P.cd);
-  var gy=H(id.x,id.z)+1.5;if(id.y<gy)id.y=gy;P.cam.lerp(id,P.init?1-Math.pow(.002,dt):1);P.init=true;
-  camera.position.copy(P.cam);camera.lookAt(P.pos.x,P.pos.y+2.6,P.pos.z);
-}
-var ACC={"1001":{n:"Sara Malik",b:"$4,120",s:"IBAN ****1001"},"1002":{n:"YOU (student)",b:"$260",s:"your own data"},"1003":{n:"Omar Nabil",b:"$18,750",s:"IBAN ****1003"}},FLAG="FLAG{broken_access_control_admin_pwned}";
-function lab(root,done){var st={i:false,a:false};
-  root.innerHTML='<div style="background:#0b1120;border:1px solid #243252;border-radius:10px;padding:12px;margin:10px 0"><div style="color:#ffd166;font-weight:700;font-size:13px;margin-bottom:6px">🎯 Objectives</div><div style="font-size:13px;margin:4px 0"><span id="g1">⬜</span> 1. IDOR — شوف حساب مستخدم تاني (غيّر الـ <code>id</code>)</div><div style="font-size:13px;margin:4px 0"><span id="g2">⬜</span> 2. افتح <code>/admin</code> مباشرة</div></div><div style="background:#0b1120;border:1px solid #243252;border-radius:12px;overflow:hidden;margin:10px 0"><div style="display:flex;gap:8px;align-items:center;background:#1a2540;padding:8px"><span style="color:#8ea0c8;font:12px monospace">🔒 https://acmebank.lab</span><input id="ad" value="/account?id=1002" style="flex:1;background:#0b1120;border:1px solid #243252;border-radius:8px;padding:9px;color:#e6ecff;font:13px monospace;outline:none;margin:0"/><button id="gob" style="background:#2ee6a6;color:#04121a;border:none;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Go</button></div><div style="display:flex;gap:14px;padding:8px 16px;background:#121a2e;font-size:13px"><span id="nh" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🏠 My Account</span><span id="nad" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🛡️ Admin Panel</span></div><div id="pg" style="padding:16px;min-height:130px;font-size:14px;line-height:1.7"></div></div><div style="display:flex;gap:10px;align-items:center"><button id="hb" class="gh" style="padding:9px 14px;border-radius:8px;border:none">💡 Hint</button><button id="gu" class="gh" style="padding:9px 14px;border-radius:8px;border:none">Leave</button><span id="hn" style="font-size:12px;color:#8ea0c8"></span></div><div id="fb"></div>';
-  function q(s){return root.querySelector(s);}var ad=q("#ad"),pg=q("#pg");
-  function nav(raw){var pt=raw.replace(/^https?:\/\/[^/]+/,"").trim();if(pt.charAt(0)!=="/")pt="/"+pt;ad.value=pt;var pr=pt.split("?"),p0=pr[0],id=(new URLSearchParams(pr[1]||"")).get("id")||"1002";
-    if(p0==="/account"){var a=ACC[id];if(!a){pg.innerHTML='<b style="color:#ff5470">404</b> — no account #'+id;return;}
-      pg.innerHTML='<h3 style="color:#4da6ff">Account #'+id+' — '+a.n+'</h3><div>Balance: <b>'+a.b+'</b></div><div style="color:#ffd166">Private: '+a.s+'</div>'+(id!=="1002"?'<div style="margin-top:8px;color:#2ee6a6">⚠️ بتشوف بيانات حد تاني — السيرفر ماتحققش!</div>':'');
-      if(id!=="1002"&&!st.i){st.i=true;q("#g1").textContent="✅";q("#hn").textContent="IDOR تم! دلوقتي اكتب /admin";}}
-    else if(p0==="/admin"){pg.innerHTML='<h3 style="color:#ff5470">🛡️ ADMIN PANEL</h3><div>Users: 3 · Pending transfers: 12</div><div style="margin-top:10px;background:#04121a;border:1px dashed #2ee6a6;border-radius:8px;padding:10px;color:#2ee6a6;font:13px monospace">'+FLAG+'</div>';if(!st.a){st.a=true;q("#g2").textContent="✅";}}
-    else pg.innerHTML='<b style="color:#ff5470">404</b> — '+p0;
-    if(st.i&&st.a)win();}
-  function win(){q("#fb").className="fbk";q("#fb").innerHTML='✅ <b>Lab solved!</b> استغللت BAC عن طريق IDOR + الوصول المباشر.<br/><b>الإصلاح:</b> طبّق التحكم بالوصول على السيرفر لكل طلب وارفض افتراضيًا.<div style="margin-top:12px"><button id="cap" class="go" style="padding:11px 18px;border-radius:8px;border:none;font-weight:700">Capture flag 🚩</button></div>';q("#cap").onclick=function(){done(true);};}
-  q("#gob").onclick=function(){nav(ad.value);};ad.addEventListener("keydown",function(e){if(e.key==="Enter")nav(ad.value);});
-  q("#nh").onclick=function(){nav("/account?id=1002");};
-  q("#nad").onclick=function(){pg.innerHTML='<b style="color:#ff5470">403 Forbidden</b> — الزرار مقفول لغير الأدمن.<div style="margin-top:8px;color:#8ea0c8">…بس هل ده الطريق الوحيد؟ 🤔</div>';};
-  q("#hb").onclick=function(){q("#hn").textContent=st.i?"اكتب /admin في شريط العنوان ودوس Go.":"غيّر id=1002 لـ 1001 ودوس Go.";};
-  q("#gu").onclick=function(){done(false);};nav("/account?id=1002");
-}
-var solved=false,tt;
-function toast(m,b){var t=$("toast");t.textContent=m;t.className="tst"+(b?" bad":"");t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true;},2400);}
-function closeM(){$("mr").hidden=true;$("mr").innerHTML="";}
-function card(){$("mr").hidden=false;$("mr").innerHTML='<div class="md"><h2>Broken Access Control (OWASP #1)</h2><div class="ar">التحكم المعطّل بالوصول</div><div class="by">تقدر تتصرف خارج صلاحياتك — تشوف بيانات غيرك (IDOR) أو تفتح صفحات الأدمن مباشرة. ده الخطر الأول للويب. هتستغل مثال حي بنفسك.</div><div class="act"><button class="go" id="en">'+(solved?"Replay lab":"ادخل المعمل 🧪")+'</button><button class="gh" id="lt">Later</button></div></div>';
-  $("en").onclick=function(){showLab();};$("lt").onclick=closeM;}
-function showLab(){$("mr").innerHTML='<div class="md"><h2>Lab: Broken Access Control</h2><div class="ar">معمل: التحكم المعطّل بالوصول</div><div id="mt"></div></div>';
-  lab($("mt"),function(ok){if(ok){solved=true;$("flag").textContent="🚩 1/1";$("obj").textContent="✅ Flag captured / تم";ng.userData.core.material.color.set(0xffd166);ng.userData.core.material.emissive.set(0xffd166);win();}else closeM();});}
-function win(){$("mr").innerHTML='<div class="md"><h2>🎉 Engagement complete!</h2><div class="ar">اكتملت المهمة!</div><div class="by">استغللت التحكم المعطّل بالوصول بالكامل — IDOR + الوصول المباشر — والتقطت الفلاج.</div><div class="act"><button class="go" id="rm">Free roam / تجوّل</button></div></div>';$("rm").onclick=closeM;}
-var isT=matchMedia("(pointer:coarse)").matches||"ontouchstart" in window,clock,run=false,near=false;
-function interact(){if(!$("mr").hidden)return;if(Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z)>7){toast("اقترب من AcmeBank",1);return;}card();}
-function start(){try{
-  if(typeof THREE==="undefined"){showErr("Three.js not loaded.");return;}
-  clock=new THREE.Clock();P.pos=new THREE.Vector3(0,0,6);P.cam=new THREE.Vector3();
-  $("boot").hidden=true;$("hud").hidden=false;if(isT)$("touch").hidden=false;
-  $("obj").textContent="🎯 روح لـ AcmeBank ودوس E";
-  renderer=new THREE.WebGLRenderer({canvas:$("scene"),antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
-  camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);
-  buildWorld();buildPlayer();
-  addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-  addEventListener("keydown",function(e){if(e.code==="KeyE")interact();if(e.code==="Escape")closeM();});
-  $("ti").onclick=interact;run=true;loop();
-}catch(e){showErr("start: "+(e&&e.message));}}
-function loop(){try{if(!run)return;requestAnimationFrame(loop);var dt=Math.min(clock.getDelta(),.05);upP(dt);
-  var t=performance.now()*.001;ng.userData.core.rotation.y+=dt*1.2;ng.userData.ring.rotation.z+=dt*.8;ng.userData.core.position.y=2.4+Math.sin(t*2)*.15;
-  var d=Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z);if(d<7&&!near){near=true;if(!solved)toast("✨ اضغط E لدخول المعمل");}else if(d>=7)near=false;
-  renderer.render(scene,camera);}catch(e){run=false;showErr("loop: "+(e&&e.message));}}
-var sb=document.getElementById("startBtn");sb.disabled=false;sb.textContent="▶ Start / ابدأ";sb.onclick=start;
-</script>
+<script src="data.js"></script>
+<script src="world.js"></script>
+<script src="player.js"></script>
+<script src="lab.js"></script>
+<script src="ui.js"></script>
+<script src="main.js"></script>
 </body></html>
