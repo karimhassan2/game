@@ -186,6 +186,13 @@ export const NODES = [
         answer:0,
         explain:{ en:"Metasploit packages exploits + payloads for gaining access.",
                   ar:"يجمع Metasploit الاستغلالات والحمولات للحصول على الوصول." } } },
+   { id:"bac", district:"access", pos:{x:12,z:-8}, xp:40, lab:"bac",
+    title:{ en:"Broken Access Control (OWASP #1)", ar:"التحكم المعطّل بالوصول (OWASP #1)" },
+    tag:{ en:"OWASP Top 10 · Hands-on", ar:"OWASP · تطبيقي" },
+    card:{ en:"Broken Access Control lets users act outside their permissions — viewing others' data (IDOR) or reaching admin pages directly. It's the #1 web risk. You'll exploit a live example.",
+           ar:"يتيح التحكم المعطّل بالوصول للمستخدمين تجاوز صلاحياتهم — رؤية بيانات غيرهم (IDOR) أو الوصول لصفحات الإدارة مباشرةً. إنه الخطر الأول للويب. ستستغل مثالًا حيًا." },
+    q:{ question:{ en:"placeholder", ar:"placeholder" }, options:[{en:"a",ar:"a"}], answer:0,
+        explain:{ en:"", ar:"" } } },
 
   // ---------- PHASE 4: MAINTAINING ACCESS ----------
   { id:"privesc", district:"persist", pos:{x:85,z:48}, xp:30,
