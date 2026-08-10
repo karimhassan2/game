@@ -112,8 +112,10 @@ function tryInteract(){
   if(!near){ UI.toast("No node in range / لا توجد نقطة قريبة", true); return; }
   const node=NODES.find(n=>n.id===near.group.userData.nodeId);
   const done=profile.discovered[node.id]?.correct;
-  UI.showDiscovery(node, !!done,
-    ()=> UI.showQuestion(node, correct=>onAnswer(node, correct)), null);
+  const prove = node.lab
+    ? ()=> UI.showLab(node, correct=>onAnswer(node, correct))   // hands-on lab
+    : ()=> UI.showQuestion(node, correct=>onAnswer(node, correct)); // quiz fallback
+  UI.showDiscovery(node, !!done, prove, null);
 }
 
 function onAnswer(node, correct){
