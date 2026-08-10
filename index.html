@@ -5,9 +5,10 @@
 <title>Cyber Range — BAC Lab</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 html,body{height:100%;overflow:hidden;background:#0a0e1a;color:#e6ecff;font-family:'Segoe UI',system-ui,sans-serif;-webkit-user-select:none;user-select:none}
 canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none}
-#log{position:fixed;top:0;left:0;z-index:9999;background:#000;color:#3f3;font:12px monospace;padding:8px;max-width:96vw;white-space:pre-wrap;opacity:.95;pointer-events:none}
+#err{display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:#7a0016;color:#fff;padding:12px;font:13px monospace;white-space:pre-wrap}
 .ov{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,#16213e,#070a14);padding:16px;overflow:auto}
 .card{background:#121a2e;border:1px solid #243252;border-radius:18px;padding:26px;max-width:500px;width:100%}
 .logo{font-size:30px;font-weight:800;color:#2ee6a6;text-align:center}
@@ -18,7 +19,7 @@ input{width:100%;background:#0b1120;border:1px solid #243252;border-radius:10px;
 .how{margin-top:16px;background:#0b1120;border:1px solid #243252;border-radius:12px;padding:14px;font-size:12.5px;color:#8ea0c8;line-height:1.7}
 .how b{color:#e6ecff}
 .hud{position:fixed;inset:0;z-index:20;pointer-events:none}
-.top{position:absolute;top:60px;left:12px;right:12px;display:flex;gap:12px;align-items:center}
+.top{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:12px;align-items:center}
 .bg{background:#121a2e;border:1px solid #ffd166;color:#ffd166;padding:6px 12px;border-radius:20px;font-weight:700;font-size:13px}
 .ob{flex:1;font-size:13px;color:#8ea0c8}
 .fl{background:#121a2e;border:1px solid #243252;padding:6px 12px;border-radius:20px;font-weight:700}
@@ -39,14 +40,18 @@ input{width:100%;background:#0b1120;border:1px solid #243252;border-radius:10px;
 .fbk{margin-top:10px;padding:12px;border-radius:10px;font-size:13.5px;line-height:1.6;background:rgba(46,230,166,.1);border:1px solid #2ee6a6;color:#2ee6a6}
 code{background:#04121a;padding:1px 5px;border-radius:4px;color:#ffd166;font-size:12px}
 </style>
+<script>
+window.onerror=function(m,s,l){showErr(m+" @ line "+l);};
+function showErr(m){var d=document.getElementById("err");if(d){d.style.display="block";d.textContent="⚠️ "+m;}}
+</script>
 </head><body>
-<div id="log">جاري التحميل… / Loading…</div>
+<div id="err"></div>
 <div id="boot" class="ov"><div class="card">
   <div class="logo">🛡️ CYBER RANGE</div>
   <div class="sub">Broken Access Control Lab — <span dir="rtl">معمل BAC</span></div>
   <input id="pname" maxlength="20" placeholder="اسمك / Agent name"/>
   <button id="startBtn" class="bp" disabled>⏳ Loading…</button>
-  <div class="how"><b>تحكم:</b> WASD / الجويستيك = تحرّك · اسحب الماوس = كاميرا · <b>E</b> = ادخل المعمل.</div>
+  <div class="how"><b>تحكم:</b> WASD / الجويستيك = تحرّك · اسحب الماوس = كاميرا · العجلة = زووم · <b>E</b> = ادخل المعمل.</div>
 </div></div>
 <div id="hud" class="hud" hidden>
   <div class="top"><div class="bg">🕵️ Pentester</div><div id="obj" class="ob"></div><div id="flag" class="fl">🚩 0/1</div></div>
@@ -56,15 +61,9 @@ code{background:#04121a;padding:1px 5px;border-radius:4px;color:#ffd166;font-siz
 <div id="mr" class="mr" hidden></div>
 <canvas id="scene"></canvas>
 
-<script>
-var LOG=[];
-function L(m){ LOG.push(m); var d=document.getElementById('log'); if(d) d.innerHTML=LOG.join('<br/>'); }
-L("1/8 ✅ HTML + CSS loaded");
-window.onerror=function(m,s,l){ L("❌ ERROR: "+m+" (line "+l+")"); };
-</script>
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script>
-L(typeof THREE!=="undefined" ? ("2/8 ✅ Three.js r"+THREE.REVISION+" loaded") : "2/8 ❌ Three.js FAILED — check internet");
+if(typeof THREE==="undefined")showErr("Three.js not loaded — connect to internet & refresh.");
 
 var NODE={pos:{x:0,z:-30}},SCOPE=110;
 var scene,camera,renderer,ng,grp,clock;
@@ -131,7 +130,7 @@ function upP(dt){var mz=0,mx=0;
   if(P.joy.a){mz+=-P.joy.y;mx+=P.joy.x;}
   var fx=-Math.sin(P.cy),fz=-Math.cos(P.cy),rx=Math.cos(P.cy),rz=-Math.sin(P.cy),dx=fx*mz+rx*mx,dz=fz*mz+rz*mx,ln=Math.hypot(dx,dz),mo=ln>.01;
   if(mo){dx/=ln;dz/=ln;P.pos.x+=dx*14*dt;P.pos.z+=dz*14*dt;var tg=Math.atan2(dx,dz),df=tg-P.face;while(df>Math.PI)df-=6.283;while(df<-Math.PI)df+=6.283;P.face+=df*Math.min(1,10*dt);}
-  if(Math.hypot(P.pos.x,P.pos.z)>SCOPE){var l=Math.hypot(P.pos.x,P.pos.z)||1;P.pos.x*=(SCOPE-3)/l;P.pos.z*=(SCOPE-3)/l;toast("⚠️ OUT OF SCOPE",1);}
+  if(Math.hypot(P.pos.x,P.pos.z)>SCOPE){var l=Math.hypot(P.pos.x,P.pos.z)||1;P.pos.x*=(SCOPE-3)/l;P.pos.z*=(SCOPE-3)/l;toast("⚠️ OUT OF SCOPE / خارج النطاق",1);}
   P.pos.y=H(P.pos.x,P.pos.z);grp.position.set(P.pos.x,P.pos.y+(mo?Math.abs(Math.sin(performance.now()*.012))*.15:0),P.pos.z);grp.rotation.y=P.face;
   var cp=Math.cos(P.cp),sp=Math.sin(P.cp),idl=new THREE.Vector3(P.pos.x+Math.sin(P.cy)*cp*P.cd,P.pos.y+sp*P.cd+3,P.pos.z+Math.cos(P.cy)*cp*P.cd);
   var gy=H(idl.x,idl.z)+1.5;if(idl.y<gy)idl.y=gy;P.cam.lerp(idl,P.init?1-Math.pow(.002,dt):1);P.init=true;
@@ -139,57 +138,48 @@ function upP(dt){var mz=0,mx=0;
 }
 var ACC={"1001":{n:"Sara Malik",b:"$4,120",s:"IBAN ****1001"},"1002":{n:"YOU (student)",b:"$260",s:"your own data"},"1003":{n:"Omar Nabil",b:"$18,750",s:"IBAN ****1003"}},FLAG="FLAG{broken_access_control_admin_pwned}";
 function lab(root,done){var st={i:false,a:false};
-  root.innerHTML='<div style="background:#0b1120;border:1px solid #243252;border-radius:10px;padding:12px;margin:10px 0"><div style="color:#ffd166;font-weight:700;font-size:13px;margin-bottom:6px">🎯 Objectives</div><div style="font-size:13px;margin:4px 0"><span id="g1">⬜</span> 1. IDOR — غيّر الـ <code>id</code></div><div style="font-size:13px;margin:4px 0"><span id="g2">⬜</span> 2. افتح <code>/admin</code> مباشرة</div></div><div style="background:#0b1120;border:1px solid #243252;border-radius:12px;overflow:hidden;margin:10px 0"><div style="display:flex;gap:8px;align-items:center;background:#1a2540;padding:8px"><span style="color:#8ea0c8;font:12px monospace">🔒 https://acmebank.lab</span><input id="ad" value="/account?id=1002" style="flex:1;background:#0b1120;border:1px solid #243252;border-radius:8px;padding:9px;color:#e6ecff;font:13px monospace;outline:none;margin:0"/><button id="gob" style="background:#2ee6a6;color:#04121a;border:none;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Go</button></div><div style="display:flex;gap:14px;padding:8px 16px;background:#121a2e;font-size:13px"><span id="nh" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🏠 My Account</span><span id="nad" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🛡️ Admin Panel</span></div><div id="pg" style="padding:16px;min-height:130px;font-size:14px;line-height:1.7"></div></div><div style="display:flex;gap:10px;align-items:center"><button id="hb" class="gh" style="padding:9px 14px;border-radius:8px;border:none">💡 Hint</button><button id="gu" class="gh" style="padding:9px 14px;border-radius:8px;border:none">Leave</button><span id="hn" style="font-size:12px;color:#8ea0c8"></span></div><div id="fb"></div>';
+  root.innerHTML='<div style="background:#0b1120;border:1px solid #243252;border-radius:10px;padding:12px;margin:10px 0"><div style="color:#ffd166;font-weight:700;font-size:13px;margin-bottom:6px">🎯 Objectives</div><div style="font-size:13px;margin:4px 0"><span id="g1">⬜</span> 1. IDOR — شوف حساب مستخدم تاني (غيّر الـ <code>id</code>)</div><div style="font-size:13px;margin:4px 0"><span id="g2">⬜</span> 2. افتح <code>/admin</code> مباشرة</div></div><div style="background:#0b1120;border:1px solid #243252;border-radius:12px;overflow:hidden;margin:10px 0"><div style="display:flex;gap:8px;align-items:center;background:#1a2540;padding:8px"><span style="color:#8ea0c8;font:12px monospace">🔒 https://acmebank.lab</span><input id="ad" value="/account?id=1002" style="flex:1;background:#0b1120;border:1px solid #243252;border-radius:8px;padding:9px;color:#e6ecff;font:13px monospace;outline:none;margin:0"/><button id="gob" style="background:#2ee6a6;color:#04121a;border:none;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Go</button></div><div style="display:flex;gap:14px;padding:8px 16px;background:#121a2e;font-size:13px"><span id="nh" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🏠 My Account</span><span id="nad" style="color:#4da6ff;cursor:pointer;text-decoration:underline">🛡️ Admin Panel</span></div><div id="pg" style="padding:16px;min-height:130px;font-size:14px;line-height:1.7"></div></div><div style="display:flex;gap:10px;align-items:center"><button id="hb" class="gh" style="padding:9px 14px;border-radius:8px;border:none">💡 Hint</button><button id="gu" class="gh" style="padding:9px 14px;border-radius:8px;border:none">Leave</button><span id="hn" style="font-size:12px;color:#8ea0c8"></span></div><div id="fb"></div>';
   function q(s){return root.querySelector(s);}var ad=q("#ad"),pg=q("#pg");
   function nav(raw){var pt=raw.replace(/^https?:\/\/[^/]+/,"").trim();if(pt.charAt(0)!=="/")pt="/"+pt;ad.value=pt;var pr=pt.split("?"),p0=pr[0],id=(new URLSearchParams(pr[1]||"")).get("id")||"1002";
     if(p0==="/account"){var a=ACC[id];if(!a){pg.innerHTML='<b style="color:#ff5470">404</b> — no account #'+id;return;}
-      pg.innerHTML='<h3 style="color:#4da6ff">Account #'+id+' — '+a.n+'</h3><div>Balance: <b>'+a.b+'</b></div><div style="color:#ffd166">Private: '+a.s+'</div>'+(id!=="1002"?'<div style="margin-top:8px;color:#2ee6a6">⚠️ بتشوف بيانات حد تاني!</div>':'');
+      pg.innerHTML='<h3 style="color:#4da6ff">Account #'+id+' — '+a.n+'</h3><div>Balance: <b>'+a.b+'</b></div><div style="color:#ffd166">Private: '+a.s+'</div>'+(id!=="1002"?'<div style="margin-top:8px;color:#2ee6a6">⚠️ بتشوف بيانات حد تاني — السيرفر ماتحققش!</div>':'');
       if(id!=="1002"&&!st.i){st.i=true;q("#g1").textContent="✅";q("#hn").textContent="IDOR تم! دلوقتي اكتب /admin";}}
-    else if(p0==="/admin"){pg.innerHTML='<h3 style="color:#ff5470">🛡️ ADMIN PANEL</h3><div>Users: 3 · Pending: 12</div><div style="margin-top:10px;background:#04121a;border:1px dashed #2ee6a6;border-radius:8px;padding:10px;color:#2ee6a6;font:13px monospace">'+FLAG+'</div>';if(!st.a){st.a=true;q("#g2").textContent="✅";}}
+    else if(p0==="/admin"){pg.innerHTML='<h3 style="color:#ff5470">🛡️ ADMIN PANEL</h3><div>Users: 3 · Pending transfers: 12</div><div style="margin-top:10px;background:#04121a;border:1px dashed #2ee6a6;border-radius:8px;padding:10px;color:#2ee6a6;font:13px monospace">'+FLAG+'</div>';if(!st.a){st.a=true;q("#g2").textContent="✅";}}
     else pg.innerHTML='<b style="color:#ff5470">404</b> — '+p0;
     if(st.i&&st.a)w();}
-  function w(){q("#fb").className="fbk";q("#fb").innerHTML='✅ <b>Lab solved!</b> استغللت BAC عن طريق IDOR + الوصول المباشر.<div style="margin-top:12px"><button id="cap" class="go" style="padding:11px 18px;border-radius:8px;border:none;font-weight:700">Capture flag 🚩</button></div>';q("#cap").onclick=function(){done(true);};}
+  function w(){q("#fb").className="fbk";q("#fb").innerHTML='✅ <b>Lab solved!</b> استغللت BAC عن طريق IDOR + الوصول المباشر.<br/><b>الإصلاح:</b> طبّق التحكم بالوصول على السيرفر لكل طلب وارفض افتراضيًا.<div style="margin-top:12px"><button id="cap" class="go" style="padding:11px 18px;border-radius:8px;border:none;font-weight:700">Capture flag 🚩</button></div>';q("#cap").onclick=function(){done(true);};}
   q("#gob").onclick=function(){nav(ad.value);};ad.addEventListener("keydown",function(e){if(e.key==="Enter")nav(ad.value);});
   q("#nh").onclick=function(){nav("/account?id=1002");};
-  q("#nad").onclick=function(){pg.innerHTML='<b style="color:#ff5470">403 Forbidden</b><div style="margin-top:8px;color:#8ea0c8">…بس هل ده الطريق الوحيد؟ 🤔</div>';};
-  q("#hb").onclick=function(){q("#hn").textContent=st.i?"اكتب /admin ودوس Go.":"غيّر id=1002 لـ 1001 ودوس Go.";};
+  q("#nad").onclick=function(){pg.innerHTML='<b style="color:#ff5470">403 Forbidden</b> — الزرار مقفول لغير الأدمن.<div style="margin-top:8px;color:#8ea0c8">…بس هل ده الطريق الوحيد؟ 🤔</div>';};
+  q("#hb").onclick=function(){q("#hn").textContent=st.i?"اكتب /admin في شريط العنوان ودوس Go.":"غيّر id=1002 لـ 1001 ودوس Go.";};
   q("#gu").onclick=function(){done(false);};nav("/account?id=1002");
 }
-var tt;
 function toast(m,b){var t=$("toast");t.textContent=m;t.className="tst"+(b?" bad":"");t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true;},2400);}
 function closeM(){$("mr").hidden=true;$("mr").innerHTML="";}
-function card(){$("mr").hidden=false;$("mr").innerHTML='<div class="md"><h2>Broken Access Control</h2><div class="ar">التحكم المعطّل بالوصول</div><div class="by">تقدر تتصرف خارج صلاحياتك. هتستغل مثال حي بنفسك.</div><div class="act"><button class="go" id="en">'+(solved?"Replay lab":"ادخل المعمل 🧪")+'</button><button class="gh" id="lt">Later</button></div></div>';
+function card(){$("mr").hidden=false;$("mr").innerHTML='<div class="md"><h2>Broken Access Control (OWASP #1)</h2><div class="ar">التحكم المعطّل بالوصول</div><div class="by">تقدر تتصرف خارج صلاحياتك — تشوف بيانات غيرك (IDOR) أو تفتح صفحات الأدمن مباشرة. ده الخطر الأول للويب. هتستغل مثال حي بنفسك.</div><div class="act"><button class="go" id="en">'+(solved?"Replay lab":"ادخل المعمل 🧪")+'</button><button class="gh" id="lt">Later</button></div></div>';
   $("en").onclick=function(){showLab();};$("lt").onclick=closeM;}
-function showLab(){$("mr").innerHTML='<div class="md"><h2>Lab: BAC</h2><div class="ar">معمل: التحكم المعطّل بالوصول</div><div id="mt"></div></div>';
-  lab($("mt"),function(ok){if(ok){solved=true;$("flag").textContent="🚩 1/1";$("obj").textContent="✅ Flag captured";ng.userData.core.material.color.set(0xffd166);ng.userData.core.material.emissive.set(0xffd166);win();}else closeM();});}
-function win(){$("mr").innerHTML='<div class="md"><h2>🎉 Complete!</h2><div class="ar">اكتملت المهمة!</div><div class="by">استغللت الثغرة بالكامل والتقطت الفلاج.</div><div class="act"><button class="go" id="rm">Free roam</button></div></div>';$("rm").onclick=closeM;}
+function showLab(){$("mr").innerHTML='<div class="md"><h2>Lab: Broken Access Control</h2><div class="ar">معمل: التحكم المعطّل بالوصول</div><div id="mt"></div></div>';
+  lab($("mt"),function(ok){if(ok){solved=true;$("flag").textContent="🚩 1/1";$("obj").textContent="✅ Flag captured / تم";ng.userData.core.material.color.set(0xffd166);ng.userData.core.material.emissive.set(0xffd166);win();}else closeM();});}
+function win(){$("mr").innerHTML='<div class="md"><h2>🎉 Engagement complete!</h2><div class="ar">اكتملت المهمة!</div><div class="by">استغللت التحكم المعطّل بالوصول بالكامل — IDOR + الوصول المباشر — والتقطت الفلاج.</div><div class="act"><button class="go" id="rm">Free roam / تجوّل</button></div></div>';$("rm").onclick=closeM;}
 function interact(){if(!$("mr").hidden)return;if(Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z)>7){toast("اقترب من AcmeBank",1);return;}card();}
 
 function start(){try{
-  L("5/8 ▶ Start clicked — building scene…");
+  if(typeof THREE==="undefined"){showErr("Three.js not loaded.");return;}
   clock=new THREE.Clock();P.pos=new THREE.Vector3(0,0,6);P.cam=new THREE.Vector3();
   $("boot").hidden=true;$("hud").hidden=false;if(isT)$("touch").hidden=false;
   $("obj").textContent="🎯 روح لـ AcmeBank ودوس E";
   renderer=new THREE.WebGLRenderer({canvas:$("scene"),antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
   camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);
-  buildWorld();L("6/8 ✅ World built");
-  buildPlayer();L("7/8 ✅ Player built");
+  buildWorld();buildPlayer();
   addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
   addEventListener("keydown",function(e){if(e.code==="KeyE")interact();if(e.code==="Escape")closeM();});
   $("ti").onclick=interact;run=true;loop();
-}catch(e){L("❌ start() error: "+(e&&e.message));}}
-var firstFrame=true;
-function loop(){try{if(!run)return;requestAnimationFrame(loop);
-  if(firstFrame){firstFrame=false;L("8/8 ✅ RENDERING — GAME IS RUNNING! 🎮");}
-  var dt=Math.min(clock.getDelta(),.05);upP(dt);var t=performance.now()*.001;
-  ng.userData.core.rotation.y+=dt*1.2;ng.userData.ring.rotation.z+=dt*.8;ng.userData.core.position.y=2.4+Math.sin(t*2)*.15;
+}catch(e){showErr("start: "+(e&&e.message));}}
+function loop(){try{if(!run)return;requestAnimationFrame(loop);var dt=Math.min(clock.getDelta(),.05);upP(dt);
+  var t=performance.now()*.001;ng.userData.core.rotation.y+=dt*1.2;ng.userData.ring.rotation.z+=dt*.8;ng.userData.core.position.y=2.4+Math.sin(t*2)*.15;
   var d=Math.hypot(P.pos.x-NODE.pos.x,P.pos.z-NODE.pos.z);if(d<7&&!near){near=true;if(!solved)toast("✨ اضغط E لدخول المعمل");}else if(d>=7)near=false;
-  renderer.render(scene,camera);
-}catch(e){run=false;L("❌ loop() error: "+(e&&e.message));}}
+  renderer.render(scene,camera);}catch(e){run=false;showErr("loop: "+(e&&e.message));}}
 
-var sb=document.getElementById("startBtn");
-sb.disabled=false;sb.textContent="▶ Start / ابدأ";sb.onclick=start;
-L("3/8 ✅ Game code parsed");
-L("4/8 ✅ Start button ready — دوس عليه دلوقتي!");
+var sb=document.getElementById("startBtn");sb.disabled=false;sb.textContent="▶ Start / ابدأ";sb.onclick=start;
 </script>
 </body></html>
